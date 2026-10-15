@@ -75,4 +75,14 @@ export class AuthController {
     response.setHeader("Cache-Control", "no-store");
     return { user };
   }
+
+  @Post("logout")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async logout(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.sessions.destroy(request, response);
+    response.setHeader("Cache-Control", "no-store");
+  }
 }

@@ -102,13 +102,19 @@ export class AuthController {
     return this.runSignin(active, input);
   }
 
-  private beginMutation(operation: 'signup' | 'signin'): ActiveMutation | null {
+  logout(): Promise<OperationResult> {
+    const active = this.beginMutation('logout');
+    if (active === null) return Promise.resolve({ outcome: 'busy' });
+    return this.runLogout(active);
+  }
+
+  private beginMutation(operation: Operation): ActiveMutation | null {
     if (this.activeMutation !== null) return null;
     const generation = ++this.generation;
     const readId = ++this.readId;
     const active = { generation };
     this.activeMutation = active;
-    this.publish({ ...this.snapshot, status: 'authenticating', user: undefined, generation,
+    this.publish({ ...this.snapshot, status: operation === 'logout' ? 'unknown' : 'authenticating', user: undefined, generation,
       verifiedGeneration: null, latestReadId: readId, routeTrusted: false, pendingOperation: operation,
       queuedLogout: false, slow: false, submissionErrors: {}, message: undefined,
       lastOperationOutcome: null, logoutDestructionReceipt: null });
@@ -127,6 +133,44 @@ export class AuthController {
     try { post = { ok: true, user: PublicUserSchema.parse(await this.api.signin(input)) }; }
     catch (error) { post = { ok: false, error }; }
     return this.reconcileAuthentication(active, input.email.trim().toLowerCase(), post, 'signin');
+  }
+
+  private async runLogout(active: ActiveMutation): Promise<OperationResult> {
+    let acknowledged = false;
+    let failure: unknown;
+    try { await this.api.logout(); acknowledged = true; }
+    catch (error) { failure = error; }
+
+    const readId = ++this.readId;
+    this.publish({ ...this.snapshot, latestReadId: readId });
+    let observation: ServerObservation = 'unknown';
+    try {
+      PublicUserSchema.parse(await this.api.me());
+      observation = 'authenticated';
+    } catch (error) {
+      if (error instanceof AuthApiError && error.kind === 'unauthenticated') observation = 'anonymous';
+    }
+    if (this.activeMutation !== active || this.generation !== active.generation || this.readId !== readId) {
+      return { outcome: 'uncertain' };
+    }
+
+    const confirmed = acknowledged && observation === 'anonymous';
+    const alreadyAnonymous = !acknowledged && observation === 'anonymous' && failure instanceof AuthApiError
+      && failure.kind === 'unauthenticated' && failure.status === 401;
+    const uncertain = !acknowledged && !alreadyAnonymous && this.isUncertain(failure);
+    const outcome: OperationOutcome = confirmed ? 'confirmed'
+      : alreadyAnonymous ? 'already-anonymous' : uncertain ? 'uncertain' : 'verification-failed';
+    const message = confirmed || alreadyAnonymous ? undefined
+      : uncertain ? "We couldn't confirm sign-out. Check your session again."
+        : 'We could not verify sign-out. Check your session again.';
+    this.activeMutation = null;
+    this.publish({ ...this.snapshot, status: confirmed || alreadyAnonymous ? 'unauthenticated' : 'unknown',
+      user: undefined, verifiedGeneration: null, routeTrusted: confirmed || alreadyAnonymous,
+      pendingOperation: null, slow: false, message, lastOperationOutcome: outcome,
+      serverObservation: observation,
+      serverOutcomeUncertain: this.snapshot.serverOutcomeUncertain || uncertain,
+      logoutDestructionReceipt: confirmed ? Object.freeze({ operationId: active.generation }) : null });
+    return message === undefined ? { outcome } : { outcome, message };
   }
 
   private async reconcileAuthentication(

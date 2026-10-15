@@ -460,12 +460,12 @@ Playwright webServer runs the built same-origin app with explicit test origin/po
 
 ### Tests first
 
-- [ ] T074 [P] [US3] Add destruction, captured-cookie replay, independent-device and failed-destroy HTTP cases in `apps/api/test/session.integration.test.ts`.
+- [x] T074 [P] [US3] Add destruction, captured-cookie replay, independent-device and failed-destroy HTTP cases in `apps/api/test/session.integration.test.ts`.
   After: T073. Check: **K074**. Coverage: FR-011, FR-012, FR-013, V07, V16.
   Expected: 204 only after awaited destroy; replay401; second device remains valid; repeatedlogout401; destroy outage503 and no success claim.
   RED/behavior target: Logout endpoint/destruction behavior is absent.
 
-- [ ] T075 [P] [US3] Add client acknowledgment-versus-anonymity and already-unauthenticated logout cases in `apps/web/test/auth-controller.test.ts`.
+- [x] T075 [P] [US3] Add client acknowledgment-versus-anonymity and already-unauthenticated logout cases in `apps/web/test/auth-controller.test.ts`.
   After: T073. Check: **K075**. Coverage: FR-012, FR-019, FR-023, FR-024, V14.
   Expected: 204+me401 confirms; 503/rejection+me401 remains unconfirmed; 401+me401 already anonymous; user/me error after204 unknown.
   RED/behavior target: Logout receipt/state logic is absent or collapses failed destruction into success.
@@ -473,28 +473,34 @@ Playwright webServer runs the built same-origin app with explicit test origin/po
 
 ### Implementation and integration
 
-- [ ] T076 [US3] Implement current presented-session destruction and matching-cookie clear after acknowledgment in `apps/api/src/session/session.service.ts`.
+- [x] T076 [US3] Implement current presented-session destruction and matching-cookie clear after acknowledgment in `apps/api/src/session/session.service.ts`.
   After: T074. Check: **K076**. Coverage: FR-011, FR-012, FR-013, V07, V16.
   Expected: No arbitrary identifier; recognized destroy error503; no early204/clear implying successful invalidation. Compilation must pass; its HTTP target remains RED until the named route-closure task, never reported as passing early.
   RED/behavior target: T074.
   HTTP GREEN closure: **T077**. Its HTTP command is `npm run build:test:api -- apps/api/test/session.integration.test.ts && node --test --test-name-pattern='logout: destroy' apps/api/dist-test/targets/session.integration.test/test/session.integration.test.js`; it is not a passing assertion at this assembly step.
 
-- [ ] T077 [US3] Add protected POST logout with 30/minute limit and empty204 response in `apps/api/src/auth/auth.controller.ts`.
+- [x] T077 [US3] Add protected POST logout with 30/minute limit and empty204 response in `apps/api/src/auth/auth.controller.ts`.
   After: T076. Check: **K077**. Coverage: FR-011, FR-012, FR-015, FR-017, V07, V09.
   Expected: CSRF/session guards still apply; repeat unauthenticated may401; independent device untouched.
   RED/behavior target: T074.
 
-- [ ] T078 [US3] Add logout observation/destruction receipts and unknown-on-failure handling in `apps/web/src/auth/auth-controller.ts`.
+- [x] T078 [US3] Add logout observation/destruction receipts and unknown-on-failure handling in `apps/web/src/auth/auth-controller.ts`.
   After: T077, T075. Check: **K078**. Coverage: FR-012, FR-019, FR-023, FR-024, V14.
   Expected: Hide protected content during logout; follow acknowledged destruction with fresh me; no anonymous read fabricates invalidation.
   RED/behavior target: T075.
 
-- [ ] T079 [US3] Add failing logout-button interaction assertion and connect welcome-page logout feedback in `apps/web/test/forms.test.tsx` and `apps/web/src/pages/welcome.tsx`.
-  After: T078. Check: **K079**. Coverage: FR-001, FR-012, FR-024, FR-027, V07, V18.
+- [x] T117 [US3] Expose safe logout uncertainty feedback in the protected-route fallback in `apps/web/src/auth/protected-route.tsx` and `apps/web/test/protected-route.test.tsx`.
+  After: T078. Check: **K117**. Coverage: FR-019, FR-020, FR-023, FR-024, V14.
+  Expected: An unknown logout hides protected content while keeping its safe feedback visible after the welcome page unmounts; no anonymous observation is labelled confirmed destruction.
+  RED/behavior target: Protected fallback hides the active logout uncertainty message.
+  Execution refinement: Added before implementation after UI integration review found that logout unmounts the welcome page, hiding local feedback. Full AuthStatus remains in Phase 6.
+
+- [x] T079 [US3] Add failing logout-button interaction assertion and connect welcome-page logout feedback in `apps/web/test/forms.test.tsx` and `apps/web/src/pages/welcome.tsx`.
+  After: T078, T117. Check: **K079**. Coverage: FR-001, FR-012, FR-024, FR-027, V07, V18.
   Expected: Semantic keyboard button; only confirmed receipt reports logout; failed invalidation offers session check with honest wording.
   RED/behavior target: Tests in this task fail for absent/wrong logout interaction before implementation.
 
-- [ ] T080 [US3] Extend built browser test with current-session logout and record server/client proof in `tests/e2e/auth.spec.ts` and `docs/evidence/us3.md`.
+- [x] T080 [US3] Extend built browser test with current-session logout and record server/client proof in `tests/e2e/auth.spec.ts` and `docs/evidence/us3.md`.
   After: T079. Check: **K080**. Coverage: FR-011, FR-012, FR-013, FR-031, V07, V14.
   Expected: Normal logout, explicit server invalidation replay, device isolation and failed-destroy messaging all have actual evidence.
 
@@ -806,6 +812,7 @@ Run from repository root under the selected runtime. K-number matches T-number. 
 | K076 | `npm run build:api` |
 | K077 | `npm run build:test:api -- apps/api/test/session.integration.test.ts && node --test --test-name-pattern='logout:' apps/api/dist-test/targets/session.integration.test/test/session.integration.test.js` |
 | K078 | `npm run test:unit --workspace @easygen/web -- test/auth-controller.test.ts -t 'logout-state:'` |
+| K117 | `npm run test:unit --workspace @easygen/web -- test/protected-route.test.tsx` |
 | K079 | `npm run test:unit --workspace @easygen/web -- test/forms.test.tsx -t 'logout-ui:'` |
 | K080 | `npm run test:integration && npm run test:unit --workspace @easygen/web && npm run build && npx playwright test tests/e2e/auth.spec.ts --project=chromium` |
 | K081 | `npm run test:unit --workspace @easygen/web -- test/auth-concurrency.test.ts -t 'ordering:'` |

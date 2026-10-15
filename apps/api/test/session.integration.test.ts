@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHmac, randomBytes } from "node:crypto";
-import { ApiErrorSchema } from "@easygen/auth-contract";
+import { ApiErrorSchema, PublicUserSchema, type PublicUser } from "@easygen/auth-contract";
 import { MongoNetworkError } from "mongodb";
 import type { SessionData } from "express-session";
 import type { ApiError } from "@easygen/auth-contract";
@@ -72,12 +72,27 @@ function postJson(fixture: MongoFixture, client: Agent, path: string, body: Reco
     .send(body);
 }
 
+function postLogout(fixture: MongoFixture, client: Agent) {
+  return client
+    .post("/api/auth/logout")
+    .set("Origin", fixture.config.appOrigin)
+    .set("X-Requested-With", "XMLHttpRequest");
+}
+
 function sessionCookie(response: SupertestResponse, fixture: MongoFixture): string {
   const headers = cookieHeaders(response);
   const cookieName = sessionCookieConfiguration(fixture.config.nodeEnv).name;
   const cookie = headers.find((header) => header.startsWith(`${cookieName}=`));
   assert.ok(cookie, "the configured session cookie must be present");
   return cookie.split(";", 1)[0] ?? "";
+}
+
+function sessionIdFromCookie(cookie: string): string {
+  const separator = cookie.indexOf("=");
+  assert.notEqual(separator, -1, "a session cookie must include its name separator");
+  const match = /^s:([^.]+)\./.exec(decodeURIComponent(cookie.slice(separator + 1)));
+  assert.ok(match?.[1], "a signed session cookie must contain a session id");
+  return match[1];
 }
 
 function sessionCookieExpiry(response: SupertestResponse, fixture: MongoFixture): number {
@@ -102,6 +117,14 @@ function responseError(response: SupertestResponse): ApiError["error"] {
     throw new Error("Expected an object error response");
   }
   return ApiErrorSchema.parse(parsed).error;
+}
+
+function responseUser(response: SupertestResponse): PublicUser {
+  const payload: unknown = response.body;
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload) || !("user" in payload)) {
+    throw new Error("Expected a user success response");
+  }
+  return PublicUserSchema.parse(payload.user);
 }
 
 function signedCookie(fixture: MongoFixture, sessionId: string): string {
@@ -198,6 +221,60 @@ function failFirstStoreWrite(fixture: MongoFixture): () => number {
     },
   });
   return () => writes;
+}
+
+function delayFirstStoreDestroy(fixture: MongoFixture): {
+  readonly started: Promise<void>;
+  readonly persisted: Promise<void>;
+  readonly release: () => void;
+  readonly calls: () => number;
+} {
+  type StoreDestroy = MongoFixture["store"]["destroy"];
+  type Callback = NonNullable<Parameters<StoreDestroy>[1]>;
+  const originalDestroy = fixture.store.destroy.bind(fixture.store);
+  let notifyStarted!: () => void;
+  let notifyPersisted!: () => void;
+  let releaseCallback: (() => void) | undefined;
+  const started = new Promise<void>((resolve) => { notifyStarted = resolve; });
+  const persisted = new Promise<void>((resolve) => { notifyPersisted = resolve; });
+  let destroys = 0;
+
+  Object.defineProperty(fixture.store, "destroy", {
+    configurable: true,
+    value: (sid: string, callback?: Callback): void => {
+      destroys += 1;
+      if (destroys !== 1) {
+        originalDestroy(sid, callback);
+        return;
+      }
+      notifyStarted();
+      originalDestroy(sid, (error) => {
+        notifyPersisted();
+        releaseCallback = () => callback?.(error);
+      });
+    },
+  });
+
+  return {
+    started,
+    persisted,
+    release: () => { releaseCallback?.(); },
+    calls: () => destroys,
+  };
+}
+
+function failStoreDestroy(fixture: MongoFixture): () => number {
+  type StoreDestroy = MongoFixture["store"]["destroy"];
+  type Callback = NonNullable<Parameters<StoreDestroy>[1]>;
+  let destroys = 0;
+  Object.defineProperty(fixture.store, "destroy", {
+    configurable: true,
+    value: (_sid: string, callback?: Callback): void => {
+      destroys += 1;
+      callback?.(new MongoNetworkError("injected session-store outage"));
+    },
+  });
+  return () => destroys;
 }
 
 void test("establish: waits for the acknowledged save, rotates the session, and avoids response-end writes", async (context) => {
@@ -380,4 +457,114 @@ void test("expiration: rolling activity is bounded by the absolute deadline and 
   const afterAbsoluteExpiry = await readStoredSession(fixture);
   assert.deepEqual(afterAbsoluteExpiry.auth, beforeAbsoluteExpiry.auth, "absolute rejection must not renew session metadata");
   assert.equal(afterAbsoluteExpiry.cookie?.expires, beforeAbsoluteExpiry.cookie.expires);
+});
+
+void test("logout: waits for acknowledged destruction, clears the cookie, and rejects captured-cookie replay", async (context) => {
+  const fixture = await fixtureFor(context);
+  const signup = await postJson(fixture, fixture.agent, "/api/auth/signup", credentials);
+  assert.equal(signup.status, 201, signup.text);
+  const capturedCookie = sessionCookie(signup, fixture);
+  const destroy = delayFirstStoreDestroy(fixture);
+  let responseSettled = false;
+  const logoutPromise = postLogout(fixture, fixture.agent).then((response) => {
+    responseSettled = true;
+    return response;
+  });
+
+  const destroyStarted = await Promise.race([
+    destroy.started.then(() => true),
+    logoutPromise.then(() => false),
+  ]);
+  assert.equal(destroyStarted, true, "logout must call the session store destroy operation");
+  await destroy.persisted;
+  try {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(responseSettled, false, "204 must wait for the MongoStore destroy callback");
+    assert.equal(await fixture.database.collection("sessions").countDocuments(), 0,
+      "MongoStore should have removed the session before the callback is acknowledged");
+  } finally {
+    destroy.release();
+  }
+
+  const response = await logoutPromise;
+  assert.equal(response.status, 204, response.text);
+  assert.equal(response.text, "", "logout success must have an empty body");
+  assert.equal(response.headers["cache-control"], "no-store");
+  assert.equal(destroy.calls(), 1);
+  const cookieName = sessionCookieConfiguration(fixture.config.nodeEnv).name;
+  const cleared = cookieHeaders(response).find((cookie) => cookie.startsWith(`${cookieName}=`));
+  assert.ok(cleared, "acknowledged logout must clear the configured session cookie");
+  assert.match(cleared, /Max-Age=0|Expires=/i);
+  assert.match(cleared, /HttpOnly/i);
+  assert.match(cleared, /SameSite=Strict/i);
+  assert.match(cleared, /Path=\//i);
+
+  const replay = await supertest(fixture.app.getHttpServer())
+    .get("/api/auth/me")
+    .set("Origin", fixture.config.appOrigin)
+    .set("Cookie", capturedCookie);
+  assert.equal(replay.status, 401, replay.text);
+  assert.equal(responseError(replay).code, "UNAUTHENTICATED");
+
+  const repeatedLogout = await postLogout(fixture, supertest.agent(fixture.app.getHttpServer()))
+    .set("Cookie", capturedCookie);
+  assert.equal(repeatedLogout.status, 401, repeatedLogout.text);
+  assert.equal(responseError(repeatedLogout).code, "UNAUTHENTICATED");
+});
+
+void test("logout: destroys only the presented device session", async (context) => {
+  const fixture = await fixtureFor(context);
+  const firstDevice = await postJson(fixture, fixture.agent, "/api/auth/signup", credentials);
+  assert.equal(firstDevice.status, 201, firstDevice.text);
+  const firstCookie = sessionCookie(firstDevice, fixture);
+  const secondAgent = supertest.agent(fixture.app.getHttpServer());
+  const secondDevice = await postJson(fixture, secondAgent, "/api/auth/signin", {
+    email: credentials.email,
+    password: credentials.password,
+  });
+  assert.equal(secondDevice.status, 200, secondDevice.text);
+  const secondCookie = sessionCookie(secondDevice, fixture);
+  assert.notEqual(secondCookie, firstCookie, "each device must hold an independent session id");
+  assert.equal(await fixture.database.collection("sessions").countDocuments(), 2);
+
+  const logout = await postLogout(fixture, fixture.agent);
+  assert.equal(logout.status, 204, logout.text);
+
+  const firstReplay = await supertest(fixture.app.getHttpServer())
+    .get("/api/auth/me")
+    .set("Origin", fixture.config.appOrigin)
+    .set("Cookie", firstCookie);
+  assert.equal(firstReplay.status, 401, firstReplay.text);
+  assert.equal(responseError(firstReplay).code, "UNAUTHENTICATED");
+
+  const secondIdentity = await secondAgent.get("/api/auth/me").set("Origin", fixture.config.appOrigin);
+  assert.equal(secondIdentity.status, 200, secondIdentity.text);
+  assert.equal(responseUser(secondIdentity).email, credentials.email);
+  assert.equal(await fixture.database.collection("sessions").countDocuments(), 1,
+    "logging out one device must leave the independent session stored");
+  const remainingRecord = await fixture.database.collection("sessions").findOne();
+  assert.ok(remainingRecord);
+  assert.equal(remainingRecord._id, sessionIdFromCookie(secondCookie));
+});
+
+void test("logout: reports a store outage without clearing or claiming invalidation", async (context) => {
+  const fixture = await fixtureFor(context);
+  const signup = await postJson(fixture, fixture.agent, "/api/auth/signup", credentials);
+  assert.equal(signup.status, 201, signup.text);
+  const capturedCookie = sessionCookie(signup, fixture);
+  const destroys = failStoreDestroy(fixture);
+
+  const logout = await postLogout(fixture, fixture.agent);
+  assert.equal(logout.status, 503, logout.text);
+  assert.equal(responseError(logout).code, "SESSION_STORE_UNAVAILABLE");
+  assert.equal(logout.headers["cache-control"], "no-store");
+  assert.equal(cookieHeaders(logout).length, 0, "a failed destroy must not clear the still-valid cookie");
+  assert.equal(destroys(), 1);
+  assert.equal(await fixture.database.collection("sessions").countDocuments(), 1);
+
+  const identity = await fixture.agent.get("/api/auth/me").set("Origin", fixture.config.appOrigin);
+  assert.equal(identity.status, 200, identity.text);
+  assert.equal(responseUser(identity).email, credentials.email,
+    "a failed destroy must not claim that the persisted session was invalidated");
+  assert.equal(sessionCookie(identity, fixture), capturedCookie);
 });

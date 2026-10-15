@@ -116,8 +116,28 @@ export class SessionService {
     }
   }
 
-  destroy(request: Request, response: Response): Promise<void> {
+  async destroy(request: Request, response: Response): Promise<void> {
+    const session = sessionFrom(request);
     this.requireSession(request, response);
-    throw new Error("Session destruction is not implemented yet");
+    if (!session) throw new ApiHttpError("UNAUTHENTICATED");
+    try {
+      await new Promise<void>((resolve, reject) => {
+        session.destroy((error) => {
+          if (error) reject(error instanceof Error ? error : new Error("Session destruction failed"));
+          else resolve();
+        });
+      });
+    } catch (error) {
+      if (error instanceof SessionStoreUnavailableError) {
+        throw new ApiHttpError("SESSION_STORE_UNAVAILABLE");
+      }
+      throw error;
+    }
+
+    detach(request);
+    response.clearCookie(
+      sessionCookieConfiguration(this.config.nodeEnv).name,
+      clearSessionCookieOptions(this.config.nodeEnv),
+    );
   }
 }

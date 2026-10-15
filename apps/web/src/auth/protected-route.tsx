@@ -8,7 +8,7 @@ export interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, fallback }: ProtectedRouteProps): React.JSX.Element {
-  const { snapshot } = useAuth();
+  const { controller, snapshot } = useAuth();
   const verified = snapshot.status === 'authenticated'
     && snapshot.user !== undefined
     && snapshot.verifiedGeneration === snapshot.generation
@@ -17,5 +17,12 @@ export function ProtectedRoute({ children, fallback }: ProtectedRouteProps): Rea
   if (snapshot.status === 'unauthenticated' && snapshot.routeTrusted) {
     return <Navigate to="/signin" replace />;
   }
-  return <>{fallback ?? <p role="status">Checking your session…</p>}</>;
+  const pendingText = snapshot.pendingOperation === 'logout' ? 'Signing out…' : 'Checking your session…';
+  const canRecheck = snapshot.status === 'unknown' && snapshot.pendingOperation === null
+    && snapshot.message !== undefined;
+  return <>{fallback ?? <section>
+    <p role="status">{pendingText}</p>
+    {snapshot.message === undefined ? null : <p role="alert">{snapshot.message}</p>}
+    {canRecheck ? <button type="button" onClick={() => { void controller.revalidate('retry'); }}>Check session</button> : null}
+  </section>}</>;
 }

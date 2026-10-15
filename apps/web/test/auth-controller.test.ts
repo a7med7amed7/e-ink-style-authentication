@@ -420,3 +420,174 @@ describe('signin-state:', () => {
     expect(controller.getSnapshot()).toMatchObject({ status: 'authenticated', user });
   });
 });
+
+describe('logout-state:', () => {
+  it('logout-state: confirms destruction only after acknowledged logout and anonymous identity', async () => {
+    const { api, calls } = makeApi();
+    const acknowledgment = deferred<undefined>();
+    calls.logout.mockReturnValue(acknowledgment.promise);
+    calls.me.mockResolvedValueOnce(user).mockRejectedValueOnce(apiFailure('unauthenticated'));
+    const controller = new AuthController(api);
+
+    await controller.revalidate('bootstrap');
+    const logout = controller.logout();
+    const operationId = controller.getSnapshot().generation;
+
+    expect(calls.logout).toHaveBeenCalledTimes(1);
+    expect(calls.me).toHaveBeenCalledTimes(1);
+    expect(controller.getSnapshot()).toMatchObject({
+      status: 'unknown',
+      user: undefined,
+      routeTrusted: false,
+      pendingOperation: 'logout',
+      logoutDestructionReceipt: null
+    });
+
+    acknowledgment.resolve(undefined);
+    await expect(logout).resolves.toEqual({ outcome: 'confirmed' });
+
+    expect(calls.me).toHaveBeenCalledTimes(2);
+    expect(controller.getSnapshot()).toMatchObject({
+      status: 'unauthenticated',
+      routeTrusted: true,
+      serverObservation: 'anonymous',
+      serverOutcomeUncertain: false,
+      lastOperationOutcome: 'confirmed',
+      logoutDestructionReceipt: { operationId }
+    });
+  });
+
+  it.each([
+    ['network rejection', apiFailure('network')],
+    ['service unavailable', new AuthApiError('http', 'unavailable', { status: 503 })]
+  ] as const)('logout-state: %s plus anonymous identity stays unconfirmed', async (_label, error) => {
+    const { api, calls } = makeApi();
+    calls.logout.mockRejectedValue(error);
+    calls.me.mockRejectedValue(apiFailure('unauthenticated'));
+    const controller = new AuthController(api);
+
+    await expect(controller.logout()).resolves.toMatchObject({ outcome: 'uncertain' });
+
+    expect(calls.logout).toHaveBeenCalledTimes(1);
+    expect(controller.getSnapshot()).toMatchObject({
+      status: 'unknown',
+      routeTrusted: false,
+      serverObservation: 'anonymous',
+      serverOutcomeUncertain: true,
+      lastOperationOutcome: 'uncertain',
+      logoutDestructionReceipt: null
+    });
+  });
+
+  it.each(['authenticated', 'unknown'] as const)(
+    'logout-state: a failed request with %s identity remains unknown and hidden',
+    async (observation) => {
+      const { api, calls } = makeApi();
+      calls.logout.mockRejectedValue(new AuthApiError('http', 'unavailable', { status: 503 }));
+      if (observation === 'authenticated') calls.me.mockResolvedValue(user);
+      else calls.me.mockRejectedValue(apiFailure('malformed'));
+      const controller = new AuthController(api);
+
+      await expect(controller.logout()).resolves.toMatchObject({ outcome: 'uncertain' });
+
+      expect(controller.getSnapshot()).toMatchObject({
+        status: 'unknown',
+        user: undefined,
+        routeTrusted: false,
+        serverObservation: observation,
+        serverOutcomeUncertain: true,
+        logoutDestructionReceipt: null
+      });
+    }
+  );
+
+  it('logout-state: 401 followed by anonymous identity reports already anonymous without a receipt', async () => {
+    const { api, calls } = makeApi();
+    calls.logout.mockRejectedValue(apiFailure('unauthenticated'));
+    calls.me.mockRejectedValue(apiFailure('unauthenticated'));
+    const controller = new AuthController(api);
+
+    await expect(controller.logout()).resolves.toEqual({ outcome: 'already-anonymous' });
+
+    expect(controller.getSnapshot()).toMatchObject({
+      status: 'unauthenticated',
+      routeTrusted: true,
+      serverObservation: 'anonymous',
+      serverOutcomeUncertain: false,
+      lastOperationOutcome: 'already-anonymous',
+      logoutDestructionReceipt: null
+    });
+  });
+
+  it.each(['authenticated', 'failed'] as const)(
+    'logout-state: acknowledged destruction followed by %s identity stays unknown',
+    async (observation) => {
+      const { api, calls } = makeApi();
+      calls.logout.mockResolvedValue(undefined);
+      if (observation === 'authenticated') calls.me.mockResolvedValue(user);
+      else calls.me.mockRejectedValue(apiFailure('malformed'));
+      const controller = new AuthController(api);
+
+      await expect(controller.logout()).resolves.toMatchObject({ outcome: 'verification-failed' });
+
+      expect(controller.getSnapshot()).toMatchObject({
+        status: 'unknown',
+        user: undefined,
+        routeTrusted: false,
+        serverObservation: observation === 'authenticated' ? 'authenticated' : 'unknown',
+        serverOutcomeUncertain: false,
+        logoutDestructionReceipt: null
+      });
+    }
+  );
+
+  it('logout-state: a later anonymous recheck does not backfill a destruction receipt', async () => {
+    const { api, calls } = makeApi();
+    calls.logout.mockRejectedValue(apiFailure('network'));
+    calls.me.mockRejectedValue(apiFailure('unauthenticated'));
+    const controller = new AuthController(api);
+
+    await expect(controller.logout()).resolves.toMatchObject({ outcome: 'uncertain' });
+    await controller.revalidate('retry');
+
+    expect(controller.getSnapshot()).toMatchObject({
+      status: 'unauthenticated',
+      routeTrusted: true,
+      serverObservation: 'anonymous',
+      serverOutcomeUncertain: true,
+      lastOperationOutcome: 'uncertain',
+      logoutDestructionReceipt: null
+    });
+  });
+
+  it('logout-state: shares the synchronous mutation lock and ignores stale reads', async () => {
+    const { api, calls } = makeApi();
+    const staleRead = deferred<PublicUser>();
+    const acknowledgment = deferred<undefined>();
+    calls.logout.mockReturnValue(acknowledgment.promise);
+    calls.me.mockResolvedValueOnce(user).mockImplementationOnce(() => staleRead.promise)
+      .mockRejectedValueOnce(apiFailure('unauthenticated'));
+    const controller = new AuthController(api);
+
+    await controller.revalidate('bootstrap');
+    const oldRead = controller.revalidate('retry');
+    const logout = controller.logout();
+
+    await expect(controller.signup(signupInput)).resolves.toEqual({ outcome: 'busy' });
+    await expect(controller.signin(signinInput)).resolves.toEqual({ outcome: 'busy' });
+    staleRead.resolve(otherUser);
+    await oldRead;
+    expect(controller.getSnapshot()).toMatchObject({
+      status: 'unknown',
+      user: undefined,
+      pendingOperation: 'logout',
+      routeTrusted: false
+    });
+
+    acknowledgment.resolve(undefined);
+    await expect(logout).resolves.toEqual({ outcome: 'confirmed' });
+    expect(calls.logout).toHaveBeenCalledTimes(1);
+    expect(calls.signup).not.toHaveBeenCalled();
+    expect(calls.signin).not.toHaveBeenCalled();
+  });
+});

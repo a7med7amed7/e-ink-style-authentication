@@ -20,12 +20,12 @@ type Snapshot = {
   readonly queuedLogout: boolean;
   readonly slow: boolean;
   readonly submissionErrors: Readonly<Record<string, readonly string[]>>;
-  readonly message?: string;
+  readonly message?: string | undefined;
   readonly lastOperationOutcome: OperationResult["outcome"] | null;
   readonly serverObservation: "unknown" | "authenticated" | "anonymous";
   readonly serverOutcomeUncertain: boolean;
   readonly logoutDestructionReceipt: unknown;
-  readonly user?: PublicUser;
+  readonly user?: PublicUser | undefined;
 };
 
 const signedInUser: PublicUser = {
@@ -49,6 +49,19 @@ function initialSnapshot(): Snapshot {
     serverObservation: "unknown",
     serverOutcomeUncertain: false,
     logoutDestructionReceipt: null,
+  };
+}
+
+function authenticatedSnapshot(): Snapshot {
+  return {
+    ...initialSnapshot(),
+    status: "authenticated",
+    generation: 1,
+    verifiedGeneration: 1,
+    latestReadId: 1,
+    routeTrusted: true,
+    serverObservation: "authenticated",
+    user: signedInUser,
   };
 }
 
@@ -150,12 +163,82 @@ class SigninFormsController {
   }
 }
 
+class LogoutFormsController {
+  snapshot = authenticatedSnapshot();
+  readonly listeners = new Set<() => void>();
+  readonly rechecks: string[] = [];
+  logoutCalls = 0;
+  private resolveLogout?: (result: OperationResult) => void;
+
+  getSnapshot = (): Snapshot => this.snapshot;
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+
+  revalidate = (reason: string): Promise<void> => {
+    this.rechecks.push(reason);
+    return Promise.resolve();
+  };
+
+  logout = (): Promise<OperationResult> => {
+    this.logoutCalls += 1;
+    this.update({ status: "unknown", user: undefined, generation: 2, verifiedGeneration: null,
+      routeTrusted: false, pendingOperation: "logout", message: undefined,
+      lastOperationOutcome: null, serverObservation: "unknown", serverOutcomeUncertain: false,
+      logoutDestructionReceipt: null });
+    return new Promise((resolve) => { this.resolveLogout = resolve; });
+  };
+
+  observeFailedInvalidation(): void {
+    const message = "We couldn't confirm sign-out. Check your session again.";
+    this.update({ status: "unknown", user: undefined, generation: 2, verifiedGeneration: null,
+      routeTrusted: false, pendingOperation: null, message, lastOperationOutcome: "uncertain",
+      serverObservation: "anonymous", serverOutcomeUncertain: true, logoutDestructionReceipt: null });
+    this.resolveLogout?.({ outcome: "uncertain", message });
+  }
+
+  observeConfirmedDestruction(): void {
+    this.update({ status: "unauthenticated", user: undefined, generation: 2, verifiedGeneration: null,
+      routeTrusted: true, pendingOperation: null, message: undefined, lastOperationOutcome: "confirmed",
+      serverObservation: "anonymous", serverOutcomeUncertain: false,
+      logoutDestructionReceipt: { operationId: 2 } });
+    this.resolveLogout?.({ outcome: "confirmed" });
+  }
+
+  observeAnonymousWithoutReceipt(): void {
+    this.update({ status: "unauthenticated", user: undefined, generation: 2, verifiedGeneration: null,
+      routeTrusted: true, pendingOperation: null, message: undefined, lastOperationOutcome: "already-anonymous",
+      serverObservation: "anonymous", serverOutcomeUncertain: false, logoutDestructionReceipt: null });
+    this.resolveLogout?.({ outcome: "already-anonymous" });
+  }
+
+  update(values: Partial<Snapshot>): void {
+    this.snapshot = { ...this.snapshot, ...values };
+    for (const listener of this.listeners) listener();
+  }
+}
+
 function renderRoutes(controller: FormsController, initialEntry: string) {
   return render(
     <AuthProvider controller={controller as never}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/app" element={<ProtectedRoute><WelcomePage /></ProtectedRoute>} />
+          <Route path="/signin" element={<p>Sign in route</p>} />
+        </Routes>
+      </MemoryRouter>
+    </AuthProvider>,
+  );
+}
+
+function renderWelcome(controller: LogoutFormsController) {
+  return render(
+    <AuthProvider controller={controller as never}>
+      <MemoryRouter initialEntries={["/app"]}>
+        <Routes>
           <Route path="/app" element={<ProtectedRoute><WelcomePage /></ProtectedRoute>} />
           <Route path="/signin" element={<p>Sign in route</p>} />
         </Routes>
@@ -308,5 +391,57 @@ describe("signin-form:", () => {
     expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
     expect(screen.queryByText("Welcome to the application.")).toBeNull();
     expect(controller.signinInputs).toEqual([{ email: "ada@example.test", password: "short" }]);
+  });
+});
+
+describe("logout-ui:", () => {
+  it("uses a keyboard-operable button and never reports destruction before confirmation", async () => {
+    const user = userEvent.setup();
+    const controller = new LogoutFormsController();
+    renderWelcome(controller);
+
+    const signOut = screen.getByRole<HTMLButtonElement>("button", { name: /sign out/i });
+    await user.tab();
+    expect(document.activeElement).toBe(signOut);
+    await user.keyboard("{Enter}");
+
+    expect(controller.logoutCalls).toBe(1);
+    expect(screen.queryByText(/signed out|logout confirmed/i)).toBeNull();
+    expect(screen.queryByText("Welcome to the application.")).toBeNull();
+    expect(screen.getByRole("status").textContent).toMatch(/signing out/i);
+
+    act(() => { controller.observeConfirmedDestruction(); });
+    expect(await screen.findByText("Sign in route")).toBeTruthy();
+    expect(controller.snapshot.logoutDestructionReceipt).toEqual({ operationId: 2 });
+  });
+
+  it("keeps uncertain invalidation feedback visible and offers a session check", async () => {
+    const user = userEvent.setup();
+    const controller = new LogoutFormsController();
+    renderWelcome(controller);
+    controller.rechecks.length = 0;
+    await user.click(screen.getByRole("button", { name: /sign out/i }));
+    act(() => { controller.observeFailedInvalidation(); });
+
+    expect(await screen.findByText(/couldn't confirm sign-out/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /check session/i })).toBeTruthy();
+    expect(screen.queryByText("Welcome to the application.")).toBeNull();
+    expect(controller.snapshot.logoutDestructionReceipt).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /check session/i }));
+    expect(controller.rechecks).toEqual(["retry"]);
+    expect(controller.snapshot.logoutDestructionReceipt).toBeNull();
+  });
+
+  it("does not describe an anonymous observation as confirmed logout without a destruction receipt", async () => {
+    const user = userEvent.setup();
+    const controller = new LogoutFormsController();
+    renderWelcome(controller);
+    await user.click(screen.getByRole("button", { name: /sign out/i }));
+    act(() => { controller.observeAnonymousWithoutReceipt(); });
+
+    expect(await screen.findByText("Sign in route")).toBeTruthy();
+    expect(controller.snapshot.logoutDestructionReceipt).toBeNull();
+    expect(screen.queryByText(/signed out|logout confirmed/i)).toBeNull();
   });
 });

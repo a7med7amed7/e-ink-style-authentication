@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PublicUser } from '@easygen/auth-contract';
@@ -23,17 +24,21 @@ function snapshot(overrides: Partial<AuthSnapshot> = {}): AuthSnapshot {
   };
 }
 
-function controllerWith(state: AuthSnapshot): AuthController {
+function controllerWith(state: AuthSnapshot, revalidate = vi.fn(async () => {})): AuthController {
   return {
     getSnapshot: () => state,
     subscribe: () => { return () => {}; },
-    revalidate: vi.fn(async () => {})
+    revalidate
   } as unknown as AuthController;
 }
 
-function renderProtected(state: AuthSnapshot, children: ReactNode = <p>Private account data</p>) {
+function renderProtected(
+  state: AuthSnapshot,
+  children: ReactNode = <p>Private account data</p>,
+  controller = controllerWith(state)
+) {
   return render(
-    <AuthProvider controller={controllerWith(state)}>
+    <AuthProvider controller={controller}>
       <MemoryRouter initialEntries={['/app']}>
         <Routes>
           <Route path="/app" element={<ProtectedRoute>{children}</ProtectedRoute>} />
@@ -67,6 +72,34 @@ describe('protected-route:', () => {
   it('redirects an observed anonymous snapshot to the signin destination', () => {
     renderProtected(snapshot({ status: 'unauthenticated', routeTrusted: true }));
     expect(screen.getByText('Sign in destination')).toBeTruthy();
+    expect(screen.queryByText('Private account data')).toBeNull();
+  });
+
+  it('keeps protected content hidden and announces a pending logout', () => {
+    renderProtected(snapshot({ status: 'unknown', generation: 2, pendingOperation: 'logout' }));
+    expect(screen.getByRole('status').textContent).toMatch(/signing out/i);
+    expect(screen.queryByText('Private account data')).toBeNull();
+  });
+
+  it('shows safe uncertain logout feedback and offers a session recheck without confirming destruction', async () => {
+    const userAction = userEvent.setup();
+    const state = snapshot({
+      status: 'unknown', generation: 2, pendingOperation: null,
+      message: "We couldn't confirm sign-out. Check your session again.",
+      lastOperationOutcome: 'uncertain', serverObservation: 'anonymous', serverOutcomeUncertain: true
+    });
+    const revalidate = vi.fn(async () => {});
+    renderProtected(state, <p>Private account data</p>, controllerWith(state, revalidate));
+
+    expect(screen.getByRole('alert').textContent).toBe(state.message);
+    expect(screen.getByRole('button', { name: 'Check session' })).toBeTruthy();
+    expect(screen.queryByText('Private account data')).toBeNull();
+
+    revalidate.mockClear();
+    await userAction.click(screen.getByRole('button', { name: 'Check session' }));
+    expect(revalidate).toHaveBeenCalledTimes(1);
+    expect(revalidate).toHaveBeenCalledWith('retry');
+    expect(state.logoutDestructionReceipt).toBeNull();
     expect(screen.queryByText('Private account data')).toBeNull();
   });
 });
