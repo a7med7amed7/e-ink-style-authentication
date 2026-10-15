@@ -1,0 +1,44 @@
+{
+  "name": "easygen-user-auth-assessment",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.19.1",
+  "engines": {
+    "node": "24.22.0",
+    "npm": "11.19.1"
+  },
+  "workspaces": [
+    "apps/api",
+    "apps/web",
+    "packages/auth-contract"
+  ],
+  "scripts": {
+    "build:shared": "npm run build --workspace @easygen/auth-contract",
+    "build:api": "npm run build --workspace @easygen/api",
+    "build:web": "npm run build --workspace @easygen/web",
+    "build": "npm run build:shared && npm run build:api && npm run build:web",
+    "build:test:api": "node scripts/build-api-test.mjs",
+    "test:unit:api": "npm run build:shared && npm run build:test:api && find apps/api/dist-test/test -type f -name '*.test.js' ! -name '*.integration.test.js' -print0 | xargs -0 node --test",
+    "test:unit": "npm run test:unit --workspace @easygen/auth-contract && npm run test:unit --workspace @easygen/web && npm run test:unit:api",
+    "test:integration": "npm run build:shared && npm run build:test:api && find apps/api/dist-test/test -type f -name '*.integration.test.js' -print0 | xargs -0 node --test",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "eslint .",
+    "test:e2e": "npm run build && playwright test",
+    "verify": "npm run lint && npm run typecheck && npm run build && npm run test:unit && npm run test:integration && npm run test:e2e",
+    "db:up": "docker compose up -d --wait mongo",
+    "dev:api": "npm run build:shared && npm run build:api && node --env-file=.env --watch apps/api/dist/main.js",
+    "dev:web": "npm run dev --workspace @easygen/web",
+    "start": "node apps/api/dist/main.js",
+    "benchmark:hash": "node apps/api/dist/benchmark-hash.js"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.0",
+    "eslint": "10.12.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.2"
+  },
+  "allowScripts": {
+    "argon2@0.45.1": true
+  }
+}

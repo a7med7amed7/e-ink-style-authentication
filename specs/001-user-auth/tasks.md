@@ -2,7 +2,7 @@
 
 **Input**: `specs/001-user-auth/` — [plan](plan.md), [specification](spec.md), [binding contract](implementation-contract.md), [research](research.md), [data model](data-model.md), [interface contracts](contracts/http-api.md), [verification map](verification.md), [quickstart](quickstart.md).
 **Created**: 2026-10-15 | **Branch**: `master` (unchanged)
-**Status**: Phase 1 setup is in progress. Checked tasks have passed their exact listed checks; remaining tasks are unexecuted. No authentication behavior, application build, benchmark or publication is claimed here.
+**Status**: Phase 1 setup is complete. Checked tasks passed their exact listed checks; K014 intentionally exits 1 because AI.md is new. Remaining tasks are unexecuted. No authentication behavior, application build, benchmark or publication is claimed here.
 **Tests**: Mandatory under C08/C10 and FR-031. Behavioral tests precede implementation; integration regressions that already pass are recorded honestly rather than forced to fail.
 **Organization**: Shared setup/foundation, then US1–US6 in specification priority order, then final delivery gates. No constitution or extensions.yml hooks are present.
 
@@ -64,27 +64,27 @@ Playwright webServer runs the built same-origin app with explicit test origin/po
   After: T002. Check: **K003**. Coverage: plan setup/prerequisite.
   Expected: Built exports target dist; no source aliases or Node-only runtime imports.
 
-- [ ] T004 [P] Pin Nest/Mongoose/session/Argon2 dependencies and NodeNext metadata-emitting API compilation in `apps/api/package.json` and `apps/api/tsconfig.json`.
+- [x] T004 [P] Pin Nest/Mongoose/session/Argon2 dependencies and NodeNext metadata-emitting API compilation in `apps/api/package.json` and `apps/api/tsconfig.json`.
   After: T002. Check: **K004**. Coverage: plan setup/prerequisite.
   Expected: Versions match research.md; explicit mongodb peer; ESM and decorator metadata enabled.
 
-- [ ] T005 [P] Pin React/router/Vite/test dependencies and bundler-resolution frontend compilation in `apps/web/package.json` and `apps/web/tsconfig.json`.
+- [x] T005 [P] Pin React/router/Vite/test dependencies and bundler-resolution frontend compilation in `apps/web/package.json` and `apps/web/tsconfig.json`.
   After: T002. Check: **K005**. Coverage: plan setup/prerequisite.
   Expected: Versions match research.md; strict TypeScript and React JSX configured.
 
-- [ ] T006 Define strict shared compiler options and typed ESLint rules without type-error suppression in `tsconfig.base.json` and `eslint.config.js`.
+- [x] T006 Define strict shared compiler options and typed ESLint rules without type-error suppression in `tsconfig.base.json` and `eslint.config.js`.
   After: T003, T004, T005. Check: **K006**. Coverage: plan setup/prerequisite.
   Expected: API includes strictness/decorator metadata; lint excludes generated/vendor outputs only.
 
-- [ ] T007 [P] Configure compiled Node backend tests and Vitest shared/web projects with jsdom for forms in `apps/api/tsconfig.test.json` and `vitest.config.ts`.
+- [x] T007 [P] Configure compiled Node backend tests and Vitest shared/web projects with jsdom for forms in `apps/api/tsconfig.test.json` and `vitest.config.ts`.
   After: T006. Check: **K007**. Coverage: plan setup/prerequisite.
   Expected: API src/test output under dist-test; no SWC/esbuild path losing Nest metadata.
 
-- [ ] T008 Add target-aware tsc test compilation using a temporary config; no-argument mode compiles the full API suite in `scripts/build-api-test.mjs`.
+- [x] T008 Add target-aware tsc test compilation using a temporary config; no-argument mode compiles the full API suite in `scripts/build-api-test.mjs`.
   After: T007. Check: **K008**. Coverage: plan setup/prerequisite.
   Expected: Optional test path compiles only that entry/transitive sources/session declarations into dist-test/targets/<suite>; disable shared incremental cache, propagate errors, preserve metadata, remove owned temp config. No-argument full mode uses dist-test/test.
 
-- [ ] T009 [P] Configure Vite root and localhost /api proxy retaining Origin; add HTML entry in `apps/web/vite.config.ts` and `apps/web/index.html`.
+- [x] T009 [P] Configure Vite root and localhost /api proxy retaining Origin; add HTML entry in `apps/web/vite.config.ts` and `apps/web/index.html`.
   After: T006. Check: **K009**. Coverage: plan setup/prerequisite.
   Expected: Vite targets 127.0.0.1:3000 without origin rewriting; entry points at src/main.tsx.
 
@@ -96,15 +96,15 @@ Playwright webServer runs the built same-origin app with explicit test origin/po
   After: T002. Check: **K011**. Coverage: FR-016, FR-033.
   Expected: Only Mongo infrastructure; no Redis; published 27017 binds 127.0.0.1.
 
-- [ ] T012 Resolve compatible auxiliary type/lint packages under selected peers and commit one exact dependency graph in `package-lock.json`.
+- [x] T012 Resolve compatible auxiliary type/lint packages under selected peers and commit one exact dependency graph in `package-lock.json`.
   After: T007, T009, T010, T011, T008. Check: **K012**. Coverage: plan setup/prerequisite.
   Expected: No peer overrides, legacy-peer-deps or duplicate workspace lockfiles; native Argon2 installs on selected runtime.
 
-- [ ] T013 [P] Configure built-app Playwright webServer and Chromium/Firefox/WebKit projects with isolated test data in `playwright.config.ts`.
+- [x] T013 [P] Configure built-app Playwright webServer and Chromium/Firefox/WebKit projects with isolated test data in `playwright.config.ts`.
   After: T012. Check: **K013**. Coverage: plan setup/prerequisite.
   Expected: Pinned runner resolves; mandatory browsers/DB failures will fail rather than skip suites.
 
-- [ ] T014 [P] Record actual specification/planning/task AI assistance and source-research corrections so far in `AI.md`.
+- [x] T014 [P] Record actual specification/planning/task AI assistance and source-research corrections so far in `AI.md`.
   After: T012. Check: **K014**. Coverage: FR-030, V20.
   Expected: Factual prompts/decisions; no implementation, test, publication or benchmark success invented; diff exit 1 means new content.
 
