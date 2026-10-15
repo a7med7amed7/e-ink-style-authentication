@@ -118,128 +118,128 @@ Playwright webServer runs the built same-origin app with explicit test origin/po
 **Independent validation**: Shared/native/queue/session primitive tests pass; actual fixture prerequisites fail loudly when missing. Complete all foundation work before story features.
 
 **Barrier**: All Phase 1 setup is complete. No story feature begins until all Phase 2 work is complete.
-- [ ] T015 Write Unicode/NFC boundary fixtures and failing password tests in `packages/auth-contract/test/unicode-cases.ts` and `packages/auth-contract/test/password.test.ts`.
+- [x] T015 Write Unicode/NFC boundary fixtures and failing password tests in `packages/auth-contract/test/unicode-cases.ts` and `packages/auth-contract/test/password.test.ts`.
   After: T013, T014. Check: **K015**. Coverage: FR-004, FR-005, FR-006, V12.
   Expected: Required examples plus 7/8/128/129 post-NFC code points, all forbidden categories, paired/lone surrogates, combining marks and signin-only rules are asserted.
   RED/behavior target: Password helpers are absent or violate a named fixture.
 
-- [ ] T016 Implement pure canonicalizePassword, codePointLength, signupPasswordIssues and signinPasswordIssues in `packages/auth-contract/src/password.ts`.
+- [x] T016 Implement pure canonicalizePassword, codePointLength, signupPasswordIssues and signinPasswordIssues in `packages/auth-contract/src/password.ts`.
   After: T015. Check: **K016**. Coverage: FR-004, FR-005, FR-006, V12.
   Expected: NFC only; L/Nd/P-or-S predicates; Cc/Cf/Cs/Zl/Zp rejected at signup; no password trimming or signup composition on signin.
   RED/behavior target: T015.
 
-- [ ] T017 [P] Write strict request/public-user/error schema tests including canonical email/name limits in `packages/auth-contract/test/schemas.test.ts`.
+- [x] T017 [P] Write strict request/public-user/error schema tests including canonical email/name limits in `packages/auth-contract/test/schemas.test.ts`.
   After: T016. Check: **K017**. Coverage: FR-002, FR-003, FR-005, FR-007, FR-029, V02, V12.
   Expected: Trim/lower email, no Gmail rewrite, 254 limit; trimmed names 3–80 code points; unknown/wrong fields fail; signin password policy stays distinct.
   RED/behavior target: Canonical schema contracts are missing or accept a specified invalid input.
 
-- [ ] T018 [P] Write failing startup/origin/secret/proxy configuration tests in `apps/api/test/config.test.ts`.
+- [x] T018 [P] Write failing startup/origin/secret/proxy configuration tests in `apps/api/test/config.test.ts`.
   After: T016. Check: **K018**. Coverage: FR-016, V17.
   Expected: Missing/weak base64 secret, noncanonical origin, production HTTP, invalid URI/port and broad proxy trust reject; development remains usable.
   RED/behavior target: Unsafe config is accepted or validation entry point is absent.
 
-- [ ] T019 [P] Write deterministic shared-capacity FIFO, saturation and deadline tests in `apps/api/test/hash-work.test.ts`.
+- [x] T019 [P] Write deterministic shared-capacity FIFO, saturation and deadline tests in `apps/api/test/hash-work.test.ts`.
   After: T016. Check: **K019**. Coverage: FR-018, V13.
   Expected: 2 active +4 waiting; seventh rejects; 1000-ms timer/dequeue exhaustion; no timed-out execution; release after resolve/reject and teardown.
   RED/behavior target: Admission counts/wait bounds are not enforced.
 
-- [ ] T020 [P] Implement SignupSchema, SigninSchema, PublicUserSchema and ApiErrorSchema using shared password helpers in `packages/auth-contract/src/schemas.ts`.
+- [x] T020 [P] Implement SignupSchema, SigninSchema, PublicUserSchema and ApiErrorSchema using shared password helpers in `packages/auth-contract/src/schemas.ts`.
   After: T017. Check: **K020**. Coverage: FR-002, FR-003, FR-004, FR-005, FR-006, FR-029, V02, V12.
   Expected: Strict schemas return canonical inputs; safe validation messages never contain credential values.
   RED/behavior target: T017.
 
-- [ ] T021 [P] Implement parsed immutable configuration with the exact development/production policy in `apps/api/src/config.ts`.
+- [x] T021 [P] Implement parsed immutable configuration with the exact development/production policy in `apps/api/src/config.ts`.
   After: T018. Check: **K021**. Coverage: FR-016, V17.
   Expected: No required-secret/origin fallback or environment test bypass; explicit trusted address list and private bind assumptions.
   RED/behavior target: T018.
 
-- [ ] T022 [P] Implement per-app HashWork.run with bounded FIFO and monotonic deadlines in `apps/api/src/security/hash-work.ts`.
+- [x] T022 [P] Implement per-app HashWork.run with bounded FIFO and monotonic deadlines in `apps/api/src/security/hash-work.ts`.
   After: T019. Check: **K022**. Coverage: FR-018, V13.
   Expected: Jobs enter only with a slot; timer/dequeue races cannot exceed limits; finally releases and close rejects waiting jobs.
   RED/behavior target: T019.
 
-- [ ] T023 Export inferred DTOs and pure validation entry points through the shared package in `packages/auth-contract/src/types.ts` and `packages/auth-contract/src/index.ts`.
+- [x] T023 Export inferred DTOs and pure validation entry points through the shared package in `packages/auth-contract/src/types.ts` and `packages/auth-contract/src/index.ts`.
   After: T020, T021, T022. Check: **K023**. Coverage: FR-006, V12.
   Expected: Consumers import @easygen/auth-contract built exports; PublicUser, SignupInput, SigninInput and ApiError names match contracts.
 
-- [ ] T024 [P] Write native Argon2 parameter, verification, dummy-work and common-admission tests in `apps/api/test/password.service.test.ts`.
+- [x] T024 [P] Write native Argon2 parameter, verification, dummy-work and common-admission tests in `apps/api/test/password.service.test.ts`.
   After: T023. Check: **K024**. Coverage: FR-009, FR-018, V04, V13.
   Expected: Encoded Argon2id uses m=19456,t=2,p=1; real/dummy verify use the same gate; no per-request dummy hash.
   RED/behavior target: Hash service/default parameter behavior does not meet the selected policy.
 
-- [ ] T025 [P] Write exact idle/absolute deadline tests in `apps/api/test/session-policy.test.ts`.
+- [x] T025 [P] Write exact idle/absolute deadline tests in `apps/api/test/session-policy.test.ts`.
   After: T023. Check: **K025**. Coverage: FR-009, FR-010, V06, V17.
   Expected: Equality expires; malformed/future-inconsistent metadata rejects; idle renewal never changes authentication time.
   RED/behavior target: Deadline or pinned-cookie policy is absent or extends a boundary.
 
-- [ ] T026 [P] Write adapter delegation, recognized error, no-touch and successful-receipt tests in `apps/api/test/session-store.test.ts`.
+- [x] T026 [P] Write adapter delegation, recognized error, no-touch and successful-receipt tests in `apps/api/test/session-store.test.ts`.
   After: T023. Check: **K026**. Coverage: FR-013, V16, V17.
   Expected: get/set/destroy delegate; no touch method; failed set never receipts; changed SID/object/snapshot delegates; identical acknowledged object write is local.
   RED/behavior target: The store boundary fails to preserve pre-response failure semantics.
 
-- [ ] T027 [P] Implement Argon2 hash/verify service and one precomputed dummy verifier through HashWork in `apps/api/src/security/password.service.ts`.
+- [x] T027 [P] Implement Argon2 hash/verify service and one precomputed dummy verifier through HashWork in `apps/api/src/security/password.service.ts`.
   After: T024. Check: **K027**. Coverage: FR-009, FR-018, V04, V13.
   Expected: 32-byte output, library random salt, argon2.verify stored parameters; bounded work covers all verification.
   RED/behavior target: T024.
 
-- [ ] T028 [P] Implement pure SessionPolicy with injected wall-clock and minimal typed auth metadata in `apps/api/src/session/policy.ts` and `apps/api/src/types/express-session.d.ts`.
+- [x] T028 [P] Implement pure SessionPolicy with injected wall-clock and minimal typed auth metadata in `apps/api/src/session/policy.ts` and `apps/api/src/types/express-session.d.ts`.
   After: T025. Check: **K028**. Coverage: FR-009, FR-010, V06.
   Expected: idle=lastActivity+1800000; absolute=authenticatedAt+28800000; deny equality, no authentication timestamp renewal.
   RED/behavior target: Tests in this task fail for cookie flags/serialization/deadlines before implementation.
 
-- [ ] T029 [P] Implement typed MongoStore delegation and recognized outage branding without touch in `apps/api/src/session/store.ts`.
+- [x] T029 [P] Implement typed MongoStore delegation and recognized outage branding without touch in `apps/api/src/session/store.ts`.
   After: T026. Check: **K029**. Coverage: FR-013, V16, V17.
   Expected: Store callback outages are typed; unexpected bugs stay sanitized 500; underlying error events handled, no memory fallback.
   RED/behavior target: T026.
 
-- [ ] T030 [P] Write failing cookie tests then implement secure/development options and nonenumerable pinned touch in `apps/api/test/session-cookie.test.ts` and `apps/api/src/session/cookie.ts`.
+- [x] T030 [P] Write failing cookie tests then implement secure/development options and nonenumerable pinned touch in `apps/api/test/session-cookie.test.ts` and `apps/api/src/session/cookie.ts`.
   After: T028. Check: **K030**. Coverage: FR-009, FR-010, FR-016, V17.
   Expected: Required flags/names; Path=/ no Domain; expiry pinned to minimum deadline; clear options omit lifetime fields.
   RED/behavior target: Tests in this task fail for cookie flags/serialization/deadlines before implementation.
 
-- [ ] T031 [P] Add weak same-object/sid/snapshot-digest receipts after acknowledged saves only in `apps/api/src/session/store.ts`.
+- [x] T031 [P] Add weak same-object/sid/snapshot-digest receipts after acknowledged saves only in `apps/api/src/session/store.ts`.
   After: T029. Check: **K031**. Coverage: FR-009, FR-013, V16.
   Expected: No duplicate regenerated-session database write; changed content/SID always persists; no raw cookie/HTTP response retry cache.
   RED/behavior target: T026.
 
-- [ ] T032 Assemble reusable buildApp, one Mongoose-owned client and per-app providers with startup readiness in `apps/api/src/app.module.ts` and `apps/api/src/bootstrap.ts`.
+- [x] T032 Assemble reusable buildApp, one Mongoose-owned client and per-app providers with startup readiness in `apps/api/src/app.module.ts` and `apps/api/src/bootstrap.ts`.
   After: T027, T030, T031. Check: **K032**. Coverage: FR-013, FR-016, V17.
   Expected: No module globals; bounded pool; MongoStore collectionP awaited; test dependencies injectable through factory only; route registration comes in story tasks.
 
-- [ ] T033 Create isolated real-Mongo app fixture and safe test database teardown in `apps/api/test/support/fixture.ts`.
+- [x] T033 Create isolated real-Mongo app fixture and safe test database teardown in `apps/api/test/support/fixture.ts`.
   After: T032. Check: **K033**. Coverage: plan setup/prerequisite.
   Expected: Fresh app/limiter/hash gate, controllable policy clock/store callbacks; missing DB fails; cleanup only owned test databases; close shared client once.
 
-- [ ] T034 Write failing sanitized error/no-store tests then implement shared API error mapping in `apps/api/test/api-error.test.ts` and `apps/api/src/common/api-error.filter.ts`.
+- [x] T034 Write failing sanitized error/no-store tests then implement shared API error mapping in `apps/api/test/api-error.test.ts` and `apps/api/src/common/api-error.filter.ts`.
   After: T033. Check: **K034**. Coverage: FR-007, FR-013, FR-029, V02, V17.
   Expected: Required 400/401/403/409/429/503 and unexpected 500 shapes; no values/hash/cookie/URI/stack; generated request IDs; no-store on failures.
   RED/behavior target: Tests in this task fail for unsafe/missing error behavior before implementation.
 
-- [ ] T035 [P] Write failing origin/request-shape tests then implement exact POST middleware in `apps/api/test/security-primitives.test.ts` and `apps/api/src/security/origin.middleware.ts`.
+- [x] T035 [P] Write failing origin/request-shape tests then implement exact POST middleware in `apps/api/test/security-primitives.test.ts` and `apps/api/src/security/origin.middleware.ts`.
   After: T033, T034. Check: **K035**. Coverage: FR-015, FR-016, FR-029, V08.
   Expected: Origin exact; trusted Referer only when Origin absent; null/list/malformed rejected; AJAX value exact; expected JSON incl charset; invalid media 400.
   RED/behavior target: Tests in this task fail for unmet origin/header/media behavior before implementation.
 
-- [ ] T036 [P] Write failing throttle tracker/status/unit tests then implement default-policy guard in `apps/api/test/rate-limit.test.ts` and `apps/api/src/security/rate-limit.guard.ts`.
+- [x] T036 [P] Write failing throttle tracker/status/unit tests then implement default-policy guard in `apps/api/test/rate-limit.test.ts` and `apps/api/src/security/rate-limit.guard.ts`.
   After: T033, T034. Check: **K036**. Coverage: FR-017, FR-029, V09, V17.
   Expected: Use req.ip and route policies, ms input/sec Retry-After output, standard 429 envelope; no global singleton storage.
   RED/behavior target: Tests in this task fail for the policy/units boundary before implementation.
 
-- [ ] T037 Write failing raw-store-read/anonymous-session tests then implement session loading boundary in `apps/api/test/session-middleware.test.ts` and `apps/api/src/session/session.middleware.ts`.
+- [x] T037 Write failing raw-store-read/anonymous-session tests then implement session loading boundary in `apps/api/test/session-middleware.test.ts` and `apps/api/src/session/session.middleware.ts`.
   After: T035, T036, T034. Check: **K037**. Coverage: FR-009, FR-010, FR-013, FR-015, V16, V17.
   Expected: Required session options; pin after loading; get outage maps before Nest routes; anonymous/rejected requests do not persist or renew; no auto failure fallback.
   RED/behavior target: Tests in this task fail for raw middleware load/pin/failure handling before implementation.
 
-- [ ] T038 Bind origin-before-session, throttle-before-work, filter/Helmet and scoped session providers in `apps/api/src/bootstrap.ts` and `apps/api/src/app.module.ts`.
+- [x] T038 Bind origin-before-session, throttle-before-work, filter/Helmet and scoped session providers in `apps/api/src/bootstrap.ts` and `apps/api/src/app.module.ts`.
   After: T037. Check: **K038**. Coverage: FR-013, FR-015, FR-016, FR-017, FR-029, V08, V09, V17.
   Expected: Disable default body parser; register16KiB JSON parsing with safe raw-error-to400 mapping; origin before session, throttle before password work, scoped sessions, no broad CORS; foundation tests pass.
   RED/behavior target: T035.
 
-- [ ] T039 Expose compiled runtime startup/private bind and owned shutdown for the real browser server in `apps/api/src/main.ts`.
+- [x] T039 Expose compiled runtime startup/private bind and owned shutdown for the real browser server in `apps/api/src/main.ts`.
   After: T038. Check: **K039**. Coverage: FR-010, FR-013, FR-016, V11, V15, V17.
   Expected: Compiled validated startup/private bind and owned shutdown exist before signup; config tests are already green; no feature claim from build alone.
 
-- [ ] T040 Write failing SPA/API routing assertions then wire built-static serving through Nest Express APIs in `apps/api/test/static.integration.test.ts` and `apps/api/src/bootstrap.ts`.
+- [x] T040 Write failing SPA/API routing assertions then wire built-static serving through Nest Express APIs in `apps/api/test/static.integration.test.ts` and `apps/api/src/bootstrap.ts`.
   After: T039. Check: **K040**. Coverage: FR-016, FR-030, V11, V17.
   Expected: Helmet before assets; non-API GET fallback; API unknown JSON404; fixture supplies temporary assets; production fails if required build absent; no Vite server in production.
   RED/behavior target: Tests in this task fail for missing static/API fallback policy before implementation.

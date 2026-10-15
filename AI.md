@@ -17,3 +17,11 @@ The AI assistants are carrying out Phase 1 setup tasks T001–T014 across the pi
 ## Known verification boundary
 
 Setup checks K001–K014 are recorded in `specs/001-user-auth/tasks.md` only after each listed check passes. npm reports unmet optional Nest peers in `npm ls --all`; the command exits 0, and no required peer conflict or override was reported. Authentication, accessibility, responsive-layout, browser-flow, and production-readiness claims remain pending their later tasks and verification evidence.
+
+## Foundation implementation
+
+Three Luna max agents implemented shared Unicode schemas, immutable configuration, bounded hash work and native Argon2, session policy/cookies/store receipts, app assembly, real-Mongo fixtures, sanitized errors, origin checks, throttling, session loading, startup and static routing. Root orchestrated and reviewed handoffs. Evidence is preserved under `docs/evidence/foundation/`. Focused behavioral/compile RED outcomes are distinguished in those reports. Shared tests passed 53/53; the assembled backend unit run passed 59/59 before the last asset-scope corrections, whose focused middleware/static suites and workspace typechecks passed. No authentication story, browser E2E, benchmark or production image completion is claimed.
+
+Review corrected broad proxy CIDR trust, malformed session user IDs, cookie exact-optional typing, Nest startup abort behavior, 404 error mapping, built-asset path/mode resolution, and auth-only session scope. An orchestration handoff to a completed agent was initially queued without restarting it; root corrected that and resumed the final fixes. A `build:web` probe failed because the story-phase main entrypoint is not implemented. Node/Chromium/Firefox/WebKit installation evidence does not imply E2E success; WebKit lacks a host library.
+
+Execution deviation: the planned 100-production-line cap was exceeded by configuration and app-assembly tasks before their scope was split. The changes have focused tests and independent review, but that original task-granularity instruction was not met. Subsequent implementation must split larger tasks before coding.
