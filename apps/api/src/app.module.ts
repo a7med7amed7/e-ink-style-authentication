@@ -1,6 +1,7 @@
 import { Module, type DynamicModule } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
-import { getConnectionToken, MongooseModule } from "@nestjs/mongoose";
+import { getConnectionToken, getModelToken, MongooseModule } from "@nestjs/mongoose";
+import type { Model } from "mongoose";
 import { ThrottlerModule } from "@nestjs/throttler";
 import type { MongoStore as MongoSessionStore } from "connect-mongo";
 import MongoStore from "connect-mongo";
@@ -13,6 +14,11 @@ import { sessionCookieConfiguration } from "./session/cookie.js";
 import { SessionPolicy } from "./session/policy.js";
 import { SessionStoreAdapter } from "./session/store.js";
 import { RateLimitGuard, RATE_LIMIT_POLICIES } from "./security/rate-limit.guard.js";
+import { AUTH_API_CONFIG, AuthController } from "./auth/auth.controller.js";
+import { AuthService } from "./auth/auth.service.js";
+import { USER_MODEL_NAME, UserSchema, type UserRecord } from "./auth/user.schema.js";
+import { SessionGuard } from "./session/session.guard.js";
+import { SessionService } from "./session/session.service.js";
 
 export const APP_CONFIG = Symbol("APP_CONFIG");
 export const APP_TEST_HOOKS = Symbol("APP_TEST_HOOKS");
@@ -89,9 +95,12 @@ export class AppModule {
           serverSelectionTimeoutMS: 5_000,
           waitQueueTimeoutMS: 5_000,
         }),
+        MongooseModule.forFeature([{ name: USER_MODEL_NAME, schema: UserSchema }]),
       ],
+      controllers: [AuthController],
       providers: [
         { provide: APP_CONFIG, useValue: config },
+        { provide: AUTH_API_CONFIG, useExisting: APP_CONFIG },
         { provide: APP_TEST_HOOKS, useValue: test ?? Object.freeze({}) },
         {
           provide: RATE_LIMIT_POLICIES,
@@ -99,11 +108,27 @@ export class AppModule {
         },
         RateLimitGuard,
         { provide: APP_GUARD, useExisting: RateLimitGuard },
+        SessionGuard,
+        { provide: APP_GUARD, useExisting: SessionGuard },
         { provide: HASH_WORK, useFactory: () => new HashWork() },
         {
           provide: PASSWORD_SERVICE,
           inject: [HASH_WORK],
           useFactory: (hashWork: HashWork) => PasswordService.create(hashWork),
+        },
+        {
+          provide: AuthService,
+          inject: [getModelToken(USER_MODEL_NAME), PASSWORD_SERVICE],
+          useFactory: (users: Model<UserRecord>, passwords: PasswordService) => new AuthService(users, passwords),
+        },
+        {
+          provide: SessionService,
+          inject: [SESSION_POLICY, APP_CONFIG, APP_TEST_HOOKS],
+          useFactory: (
+            policy: SessionPolicy,
+            appConfig: Readonly<ApiConfig>,
+            hooks: AppTestHooks,
+          ) => new SessionService(policy, appConfig, hooks.wallClock),
         },
         {
           provide: SESSION_POLICY,

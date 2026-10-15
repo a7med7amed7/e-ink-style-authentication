@@ -37,13 +37,17 @@ class FakeClock implements HashWorkClock {
     this.#time += milliseconds;
     if (!runDueTimers) return;
 
-    while (true) {
-      const next = [...this.#timers.entries()]
-        .filter(([, timer]) => timer.dueAt <= this.#time)
-        .sort(([firstId, first], [secondId, second]) =>
-          first.dueAt - second.dueAt || firstId - secondId,
-        )[0];
-      if (!next) return;
+    while (this.#timers.size > 0) {
+      let next: [number, FakeTimer] | undefined;
+      for (const candidate of this.#timers.entries()) {
+        const [candidateId, candidateTimer] = candidate;
+        if (candidateTimer.dueAt > this.#time) continue;
+        if (next === undefined || candidateTimer.dueAt < next[1].dueAt
+          || (candidateTimer.dueAt === next[1].dueAt && candidateId < next[0])) {
+          next = candidate;
+        }
+      }
+      if (next === undefined) return;
       const [id, timer] = next;
       this.#timers.delete(id);
       timer.callback();
@@ -66,7 +70,9 @@ function deferred<T>(): Deferred<T> {
   });
   return {
     promise,
-    resolve: (value) => resolve(value),
+    resolve: (value) => {
+      resolve(value);
+    },
     reject,
   };
 }
@@ -97,7 +103,7 @@ function closedFailure(error: unknown): boolean {
   return true;
 }
 
-test("hash-work: runs two jobs and admits four FIFO waiters before typed saturation", async (t) => {
+void test("hash-work: runs two jobs and admits four FIFO waiters before typed saturation", async (t) => {
   const clock = new FakeClock();
   const work = new HashWork({ clock });
   const started: number[] = [];
@@ -106,7 +112,9 @@ test("hash-work: runs two jobs and admits four FIFO waiters before typed saturat
   let maxActiveCount = 0;
   t.after(() => {
     work.close();
-    completions.forEach((completion, index) => completion.resolve(index + 1));
+    completions.forEach((completion, index) => {
+      completion.resolve(index + 1);
+    });
   });
 
   const jobs = completions.map((completion, index) => {
@@ -130,9 +138,9 @@ test("hash-work: runs two jobs and admits four FIFO waiters before typed saturat
   assert.equal(clock.pendingTimerCount, 4);
 
   await assert.rejects(
-    work.run(async () => {
+    work.run(() => {
       started.push(7);
-      return 7;
+      return Promise.resolve(7);
     }),
     capacityFailure("saturated"),
   );
@@ -152,7 +160,7 @@ test("hash-work: runs two jobs and admits four FIFO waiters before typed saturat
   assert.equal(clock.pendingTimerCount, 0);
 });
 
-test("hash-work: expires a waiter at 1000ms without invoking its work", async (t) => {
+void test("hash-work: expires a waiter at 1000ms without invoking its work", async (t) => {
   const clock = new FakeClock();
   const work = new HashWork({ clock });
   const first = deferred<number>();
@@ -174,9 +182,9 @@ test("hash-work: expires a waiter at 1000ms without invoking its work", async (t
     second.resolve(2);
   });
 
-  const timedOutWork = work.run(async () => {
+  const timedOutWork = work.run(() => {
     started.push(3);
-    return 3;
+    return Promise.resolve(3);
   });
   void timedOutWork.catch(() => undefined);
   const settled: string[] = [];
@@ -200,7 +208,7 @@ test("hash-work: expires a waiter at 1000ms without invoking its work", async (t
   await Promise.all(active);
 });
 
-test("hash-work: rejects an expired waiter at dequeue even if its timer did not run", async (t) => {
+void test("hash-work: rejects an expired waiter at dequeue even if its timer did not run", async (t) => {
   const clock = new FakeClock();
   const work = new HashWork({ clock });
   const first = deferred<number>();
@@ -220,9 +228,9 @@ test("hash-work: rejects an expired waiter at dequeue even if its timer did not 
     second.resolve(2);
   });
 
-  const expiredJob = work.run(async () => {
+  const expiredJob = work.run(() => {
     started.push(3);
-    return 3;
+    return Promise.resolve(3);
   });
   void expiredJob.catch(() => undefined);
   const rejection = assert.rejects(expiredJob, capacityFailure("queue-timeout"));
@@ -240,7 +248,7 @@ test("hash-work: rejects an expired waiter at dequeue even if its timer did not 
   assert.equal(await secondJob, 2);
 });
 
-test("hash-work: releases capacity after active work rejects", async (t) => {
+void test("hash-work: releases capacity after active work rejects", async (t) => {
   const clock = new FakeClock();
   const work = new HashWork({ clock });
   const first = deferred<number>();
@@ -273,7 +281,9 @@ test("hash-work: releases capacity after active work rejects", async (t) => {
   assert.deepEqual(started, [1, 2]);
   const failure = new Error("hash operation failed");
   first.reject(failure);
-  await assert.rejects(jobs[0]!, (error: unknown) => error === failure);
+  const firstJob = jobs[0];
+  assert.ok(firstJob);
+  await assert.rejects(firstJob, (error: unknown) => error === failure);
   await nextTurn();
   assert.deepEqual(started, [1, 2, 3]);
 
@@ -282,7 +292,7 @@ test("hash-work: releases capacity after active work rejects", async (t) => {
   assert.deepEqual(await Promise.all(jobs.slice(1)), [2, 3]);
 });
 
-test("hash-work: close rejects waiters and later admissions while active work settles", async (t) => {
+void test("hash-work: close rejects waiters and later admissions while active work settles", async (t) => {
   const clock = new FakeClock();
   const work = new HashWork({ clock });
   const activeCompletions = [deferred<number>(), deferred<number>()];
@@ -290,12 +300,14 @@ test("hash-work: close rejects waiters and later admissions while active work se
     work.run(async () => completion.promise.then(() => index + 1)),
   );
   const waiters = Array.from({ length: 4 }, (_, index) =>
-    work.run(async () => index + 3),
+    work.run(() => Promise.resolve(index + 3)),
   );
   const waiterRejections = waiters.map((waiter) => assert.rejects(waiter, closedFailure));
   t.after(() => {
     work.close();
-    activeCompletions.forEach((completion, index) => completion.resolve(index + 1));
+    activeCompletions.forEach((completion, index) => {
+      completion.resolve(index + 1);
+    });
   });
 
   await nextTurn();
@@ -306,14 +318,16 @@ test("hash-work: close rejects waiters and later admissions while active work se
 
   let laterWorkStarted = false;
   await assert.rejects(
-    work.run(async () => {
+    work.run(() => {
       laterWorkStarted = true;
-      return 5;
+      return Promise.resolve(5);
     }),
     closedFailure,
   );
   assert.equal(laterWorkStarted, false);
 
-  activeCompletions.forEach((completion, index) => completion.resolve(index + 1));
+  activeCompletions.forEach((completion, index) => {
+    completion.resolve(index + 1);
+  });
   assert.deepEqual(await Promise.all(active), [1, 2]);
 });

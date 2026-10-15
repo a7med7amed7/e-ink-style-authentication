@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { NestFactory } from "@nestjs/core";
+import { getConnectionToken } from "@nestjs/mongoose";
+import type { Connection } from "mongoose";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import express, { type ErrorRequestHandler, type NextFunction, type Request, type Response } from "express";
 import type { MongoStore } from "connect-mongo";
@@ -20,6 +22,7 @@ import { createOriginMiddleware } from "./security/origin.middleware.js";
 import { createSessionMiddleware } from "./session/session.middleware.js";
 import type { SessionPolicy } from "./session/policy.js";
 import type { SessionStoreAdapter } from "./session/store.js";
+import { USER_MODEL_NAME, UserSchema, type UserRecord } from "./auth/user.schema.js";
 
 export function resolveBuiltAssetsDirectory(
   directory: string,
@@ -139,6 +142,10 @@ export async function buildApp(
     app.useGlobalFilters(new ApiErrorFilter());
 
     await app.init();
+    const connection = app.get<Connection>(getConnectionToken());
+    const userModel = connection.models[USER_MODEL_NAME] ??
+      connection.model<UserRecord>(USER_MODEL_NAME, UserSchema);
+    await userModel.createIndexes();
     const store = app.get<MongoStore>(MONGO_SESSION_STORE);
     await store.collectionP;
     return app;

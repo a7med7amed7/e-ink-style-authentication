@@ -47,8 +47,9 @@ interface WaitingJob {
 const systemClock: HashWorkClock = {
   now: () => performance.now(),
   setTimeout: (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
-  clearTimeout: (handle) =>
-    globalThis.clearTimeout(handle as ReturnType<typeof globalThis.setTimeout>),
+  clearTimeout: (handle) => {
+    globalThis.clearTimeout(handle as ReturnType<typeof globalThis.setTimeout>);
+  },
 };
 
 export class HashWork {
@@ -114,7 +115,9 @@ export class HashWork {
   #scheduleExpiry(job: WaitingJob): void {
     const remaining = Math.max(0, job.deadline - this.#clock.now());
     job.hasTimer = true;
-    job.timer = this.#clock.setTimeout(() => this.#expire(job), remaining);
+    job.timer = this.#clock.setTimeout(() => {
+      this.#expire(job);
+    }, remaining);
   }
 
   #expire(job: WaitingJob): void {

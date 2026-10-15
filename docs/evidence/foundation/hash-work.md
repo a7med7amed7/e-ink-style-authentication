@@ -52,3 +52,11 @@ The verification was rerun during final review on 2026-10-15, with the same 5/5 
 - `AuthCapacityExceededError` exposes `code: "AUTH_CAPACITY_EXCEEDED"`, `retryAfterSeconds: 1`, and `reason: "saturated" | "queue-timeout"`, for the API error mapper.
 
 The gate permits two active jobs and four waiting jobs. Queue deadlines are 1000 ms; expiry is enforced both by the timer and before dequeue so an expired callback cannot begin work.
+
+## 2026-10-15 strict-lint remediation
+
+The repository strict ESLint rules surfaced type-safe style issues in the owned HashWork implementation/tests. Fixed the void-returning callback bodies, deterministic fake-clock timer selection, intentionally ignored top-level `node:test` promises, and test job callback promise forms; no rule disables or behavior changes were added.
+
+- K022 exact command: `npm run build:test:api -- apps/api/test/hash-work.test.ts && node --test --test-name-pattern='hash-work:' apps/api/dist-test/targets/hash-work.test/test/hash-work.test.js` — exit 0, 5/5 passing.
+- Targeted lint: `npx eslint apps/api/src/security/hash-work.ts apps/api/test/hash-work.test.ts` — exit 0.
+- API strict typecheck: `npm run typecheck --workspace @easygen/api` — exit 0.

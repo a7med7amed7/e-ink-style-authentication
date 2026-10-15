@@ -257,27 +257,27 @@ Playwright webServer runs the built same-origin app with explicit test origin/po
 
 ### Tests first
 
-- [ ] T041 [P] [US1] Write signup HTTP assertions for canonical inputs, persistence, invalid requests, unique-index concurrency, NFC signin recovery and duplicate 409 in `apps/api/test/auth.integration.test.ts`.
+- [x] T041 [P] [US1] Write signup HTTP assertions for canonical inputs, persistence, invalid requests, unique-index concurrency, NFC signin recovery and duplicate 409 in `apps/api/test/auth.integration.test.ts`.
   After: T040. Check: **K041**. Coverage: FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-014, V01, V02, V03, V12, V16.
   Expected: Four simultaneous normalized-email requests yield one user/201 and three 409; canonical-equivalent signin and partial-signup recovery use the normal signin route.
   RED/behavior target: HTTP routes are absent or fail the named signup/recovery assertions.
 
-- [ ] T042 [P] [US1] Write delayed-save, regenerated-ID, failed-save-detach and no-response-end-write assertions in `apps/api/test/session.integration.test.ts`.
+- [x] T042 [P] [US1] Write delayed-save, regenerated-ID, failed-save-detach and no-response-end-write assertions in `apps/api/test/session.integration.test.ts`.
   After: T040. Check: **K042**. Coverage: FR-009, FR-013, FR-014, V16.
   Expected: No success before release of save callback; failed save returns 503 with no authenticated cookie; account remains; delegated write counts prove receipt behavior.
   RED/behavior target: Authentication establishment is absent or commits/retries at response end.
 
-- [ ] T043 [P] [US1] Write same-origin JSON/header/no-retry/error-body tests for the client transport in `apps/web/test/auth-api.test.ts`.
+- [x] T043 [P] [US1] Write same-origin JSON/header/no-retry/error-body tests for the client transport in `apps/web/test/auth-api.test.ts`.
   After: T040. Check: **K043**. Coverage: FR-015, FR-019, FR-026, FR-029, V14.
   Expected: Relative URLs/credentials same-origin; AJAX and JSON headers; no POST retry; malformed success/network failure remain distinguishable from 401.
   RED/behavior target: Auth transport is absent or conflates failures with successful auth.
 
-- [ ] T044 [P] [US1] Write bootstrap/signup confirmation tests and reusable deferred fake transport helpers in `apps/web/test/auth-controller.test.ts` and `apps/web/test/support/deferred.ts`.
+- [x] T044 [P] [US1] Write bootstrap/signup confirmation tests and reusable deferred fake transport helpers in `apps/web/test/auth-controller.test.ts` and `apps/web/test/support/deferred.ts`.
   After: T040. Check: **K044**. Coverage: FR-008, FR-019, FR-020, FR-021, FR-023, FR-024, FR-026, V10, V14.
   Expected: Initial unknown; bootstrap401 anonymous; duplicate submit sends one POST; intended-user confirmation required; failed reconciliation unknown; no password retained in snapshots.
   RED/behavior target: Stable auth controller/signup path is absent or reports false confirmation.
 
-- [ ] T045 [P] [US1] Write minimal semantic signup and protected-render tests in `apps/web/test/forms.test.tsx`.
+- [x] T045 [P] [US1] Write minimal semantic signup and protected-render tests in `apps/web/test/forms.test.tsx`.
   After: T040. Check: **K045**. Coverage: FR-001, FR-008, FR-027, V01, V18.
   Expected: Email/name/password labels, shared errors, submit lock, exact welcome copy and no content before verified identity.
   RED/behavior target: Signup/welcome/route components are absent or violate required interactions.
@@ -285,110 +285,110 @@ Playwright webServer runs the built same-origin app with explicit test origin/po
 
 ### Implementation and integration
 
-- [ ] T046 [US1] Define minimal user schema/unique email index and await explicit createIndexes at startup in `apps/api/src/auth/user.schema.ts` and `apps/api/src/bootstrap.ts`.
+- [x] T046 [US1] Define minimal user schema/unique email index and await explicit createIndexes at startup in `apps/api/src/auth/user.schema.ts` and `apps/api/src/bootstrap.ts`.
   After: T041, T042. Check: **K046**. Coverage: FR-002, FR-009, V03, V17.
   Expected: passwordHash select:false; timestamps; startup fails on duplicate/index failure; no check-then-insert or syncIndexes. Compilation must pass; its HTTP target remains RED until the named route-closure task, never reported as passing early.
   RED/behavior target: T041.
   HTTP GREEN closure: **T051**. Its HTTP command is `npm run build:test:api -- apps/api/test/auth.integration.test.ts && node --test --test-name-pattern='signup: unique index' apps/api/dist-test/targets/auth.integration.test/test/auth.integration.test.js`; it is not a passing assertion at this assembly step.
 
-- [ ] T047 [US1] Implement AuthService.signup using admitted hashing and one indexed insert with typed 11000 mapping in `apps/api/src/auth/auth.service.ts`.
+- [x] T047 [US1] Implement AuthService.signup using admitted hashing and one indexed insert with typed 11000 mapping in `apps/api/src/auth/auth.service.ts`.
   After: T046. Check: **K047**. Coverage: FR-001, FR-002, FR-007, FR-009, V01, V03.
   Expected: Canonical account stored once; hash only, public DTO only; code11000 maps409 and recognized database outage503. Compilation must pass; its HTTP target remains RED until the named route-closure task, never reported as passing early.
   RED/behavior target: T041.
   HTTP GREEN closure: **T051**. Its HTTP command is `npm run build:test:api -- apps/api/test/auth.integration.test.ts && node --test --test-name-pattern='signup: canonical account' apps/api/dist-test/targets/auth.integration.test/test/auth.integration.test.js`; it is not a passing assertion at this assembly step.
 
-- [ ] T048 [US1] Implement schema-bound request pipe with field-only safe 400 errors in `apps/api/src/auth/validation.pipe.ts`.
+- [x] T048 [US1] Implement schema-bound request pipe with field-only safe 400 errors in `apps/api/src/auth/validation.pipe.ts`.
   After: T047. Check: **K048**. Coverage: FR-002, FR-003, FR-004, FR-005, FR-006, FR-029, V02, V12.
   Expected: Shared canonical result reaches services; reject unknown/wrong fields; backend never relies on browser validation. Compilation must pass; its HTTP target remains RED until the named route-closure task, never reported as passing early.
   RED/behavior target: T041.
   HTTP GREEN closure: **T051**. Its HTTP command is `npm run build:test:api -- apps/api/test/auth.integration.test.ts && node --test --test-name-pattern='signup: invalid' apps/api/dist-test/targets/auth.integration.test/test/auth.integration.test.js`; it is not a passing assertion at this assembly step.
 
-- [ ] T049 [US1] Implement SessionService.establish with regenerate, pin, minimal metadata and awaited save in `apps/api/src/session/session.service.ts`.
+- [x] T049 [US1] Implement SessionService.establish with regenerate, pin, minimal metadata and awaited save in `apps/api/src/session/session.service.ts`.
   After: T048. Check: **K049**. Coverage: FR-009, FR-013, FR-014, V16.
   Expected: Reinstall pinned-touch after regeneration; detach before error response; no mutation after acknowledged commit; account insertion is not rolled back. Compilation must pass; its HTTP target remains RED until the named route-closure task, never reported as passing early.
   RED/behavior target: T042.
   HTTP GREEN closure: **T051**. Its HTTP command is `npm run build:test:api -- apps/api/test/session.integration.test.ts && node --test --test-name-pattern='establish:' apps/api/dist-test/targets/session.integration.test/test/session.integration.test.js`; it is not a passing assertion at this assembly step.
 
-- [ ] T050 [US1] Implement requireSession validation/expiry clearing and default-protected SessionGuard with Public metadata in `apps/api/src/session/session.service.ts` and `apps/api/src/session/session.guard.ts`.
+- [x] T050 [US1] Implement requireSession validation/expiry clearing and default-protected SessionGuard with Public metadata in `apps/api/src/session/session.service.ts` and `apps/api/src/session/session.guard.ts`.
   After: T049. Check: **K050**. Coverage: FR-008, FR-010, FR-013, V05, V06.
   Expected: Only explicit signup/signin are public; malformed/expired sessions detach/clear and return401 without storage cleanup dependency or renewal. Compilation must pass; its HTTP target remains RED until the named route-closure task, never reported as passing early.
   RED/behavior target: T041.
   HTTP GREEN closure: **T054**. Its HTTP command is `npm run build:test:api -- apps/api/test/auth.integration.test.ts && node --test --test-name-pattern='signup: protected identity' apps/api/dist-test/targets/auth.integration.test/test/auth.integration.test.js`; it is not a passing assertion at this assembly step.
 
-- [ ] T051 [US1] Register signup orchestration and global guard order with explicit signup throttling in `apps/api/src/auth/auth.controller.ts` and `apps/api/src/app.module.ts`.
+- [x] T051 [US1] Register signup orchestration and global guard order with explicit signup throttling in `apps/api/src/auth/auth.controller.ts` and `apps/api/src/app.module.ts`.
   After: T050. Check: **K051**. Coverage: FR-001, FR-009, FR-014, FR-015, FR-017, V01, V09, V16.
   Expected: POST signup public+origin/validation/throttle; 5/15min; insert then establish before201; expose no session internals.
   RED/behavior target: T041.
 
-- [ ] T052 [US1] Add AuthService.getPublicUser for session-bound identity lookup in `apps/api/src/auth/auth.service.ts`.
+- [x] T052 [US1] Add AuthService.getPublicUser for session-bound identity lookup in `apps/api/src/auth/auth.service.ts`.
   After: T051. Check: **K052**. Coverage: FR-008, FR-009, V05.
   Expected: DTO excludes hash; missing account denies authentication rather than fabricating identity. Compilation must pass; its HTTP target remains RED until the named route-closure task, never reported as passing early.
   RED/behavior target: T041.
   HTTP GREEN closure: **T054**. Its HTTP command is `npm run build:test:api -- apps/api/test/auth.integration.test.ts && node --test --test-name-pattern='signup: protected identity' apps/api/dist-test/targets/auth.integration.test/test/auth.integration.test.js`; it is not a passing assertion at this assembly step.
 
-- [ ] T053 [US1] Add explicit accepted-request renewal with pinned store/cookie deadline and post-I/O expiry recheck in `apps/api/src/session/session.service.ts`.
+- [x] T053 [US1] Add explicit accepted-request renewal with pinned store/cookie deadline and post-I/O expiry recheck in `apps/api/src/session/session.service.ts`.
   After: T052. Check: **K053**. Coverage: FR-009, FR-010, FR-013, V06, V16, V17.
   Expected: Only accepted active session renews; authenticatedAt fixed; await save before protected response; crossed absolute deadline denies. Compilation must pass; its HTTP target remains RED until the named route-closure task, never reported as passing early.
   RED/behavior target: T042.
   HTTP GREEN closure: **T054**. Its HTTP command is `npm run build:test:api -- apps/api/test/session.integration.test.ts && node --test --test-name-pattern='establish: renewal' apps/api/dist-test/targets/session.integration.test/test/session.integration.test.js`; it is not a passing assertion at this assembly step.
 
-- [ ] T054 [US1] Add protected GET identity orchestration with persisted renewal before user response in `apps/api/src/auth/auth.controller.ts`.
+- [x] T054 [US1] Add protected GET identity orchestration with persisted renewal before user response in `apps/api/src/auth/auth.controller.ts`.
   After: T053. Check: **K054**. Coverage: FR-001, FR-008, FR-010, FR-015, FR-017, V01, V05.
   Expected: Anonymous401, valid200; 120/minute; no business-state mutation; no-store; expired/invalid reference cannot expose user.
   RED/behavior target: T041.
 
-- [ ] T055 [US1] Add normal signin backend service for signup recovery and canonical-equivalence acceptance in `apps/api/src/auth/auth.service.ts`.
+- [x] T055 [US1] Add normal signin backend service for signup recovery and canonical-equivalence acceptance in `apps/api/src/auth/auth.service.ts`.
   After: T054. Check: **K055**. Coverage: FR-005, FR-006, FR-007, FR-014, FR-018, V04, V12, V16.
   Expected: Lookup normalized email with explicitly selected hash; real/dummy verify share gate; generic invalid email/password401. Compilation must pass; its HTTP target remains RED until the named route-closure task, never reported as passing early.
   RED/behavior target: T041.
   HTTP GREEN closure: **T056**. Its HTTP command is `npm run build:test:api -- apps/api/test/auth.integration.test.ts && node --test --test-name-pattern='signup: recovery' apps/api/dist-test/targets/auth.integration.test/test/auth.integration.test.js`; it is not a passing assertion at this assembly step.
 
-- [ ] T056 [US1] Expose public validated signin recovery route with regenerate/save and 10/minute policy in `apps/api/src/auth/auth.controller.ts`.
+- [x] T056 [US1] Expose public validated signin recovery route with regenerate/save and 10/minute policy in `apps/api/src/auth/auth.controller.ts`.
   After: T055. Check: **K056**. Coverage: FR-001, FR-005, FR-009, FR-014, FR-015, FR-017, V04, V12, V16.
   Expected: Partial-signup account recovers via ordinary signin; composed/decomposed passwords authenticate equivalently; successful200 only after save.
   RED/behavior target: T041.
 
-- [ ] T057 [US1] Implement typed AuthApi transport for signup/signin/me/logout with validated response bodies in `apps/web/src/api/auth-api.ts`.
+- [x] T057 [US1] Implement typed AuthApi transport for signup/signin/me/logout with validated response bodies in `apps/web/src/api/auth-api.ts`.
   After: T043, T056. Check: **K057**. Coverage: FR-019, FR-026, FR-029, V14.
   Expected: No POST retries or waiting-threshold abort; explicit401 separate from network/unexpected/malformed; logout204 has no parsed JSON body.
   RED/behavior target: T043.
 
-- [ ] T058 [US1] Implement stable auth snapshot/subscription, bootstrap read generations and unknown/anonymous transitions in `apps/web/src/auth/auth-controller.ts`.
+- [x] T058 [US1] Implement stable auth snapshot/subscription, bootstrap read generations and unknown/anonymous transitions in `apps/web/src/auth/auth-controller.ts`.
   After: T044, T057. Check: **K058**. Coverage: FR-008, FR-019, FR-020, V10, V14.
   Expected: Snapshot immutable/stable for useSyncExternalStore; latest read token and generation checked on success/error/finally; initial content hidden.
   RED/behavior target: T044.
 
-- [ ] T059 [US1] Add synchronous signup mutation lock, canonical intended-user confirmation and reconciliation in `apps/web/src/auth/auth-controller.ts`.
+- [x] T059 [US1] Add synchronous signup mutation lock, canonical intended-user confirmation and reconciliation in `apps/web/src/auth/auth-controller.ts`.
   After: T058. Check: **K059**. Coverage: FR-019, FR-020, FR-021, FR-023, FR-024, FR-026, V14.
   Expected: Mutating intent invalidates reads; duplicate blocked before rerender; 2xx+/me match confirms; uncertainty never becomes false success; no credentials snapshot cache.
   RED/behavior target: T044.
 
-- [ ] T060 [US1] Write failing subscription/StrictMode tests then connect the stable controller to React in `apps/web/test/auth-context.test.tsx` and `apps/web/src/auth/auth-context.tsx`.
+- [x] T060 [US1] Write failing subscription/StrictMode tests then connect the stable controller to React in `apps/web/test/auth-context.test.tsx` and `apps/web/src/auth/auth-context.tsx`.
   After: T059. Check: **K060**. Coverage: FR-008, FR-019, FR-020, V05, V14.
   Expected: No effect-dispatched POST; unknown/authenticating/stale-generation views expose no protected user content.
   RED/behavior target: Tests in this task fail for the React external-store bridge before implementation.
 
-- [ ] T061 [US1] Write failing protected-content tests then implement verified-generation rendering gate in `apps/web/test/protected-route.test.tsx` and `apps/web/src/auth/protected-route.tsx`.
+- [x] T061 [US1] Write failing protected-content tests then implement verified-generation rendering gate in `apps/web/test/protected-route.test.tsx` and `apps/web/src/auth/protected-route.tsx`.
   After: T060. Check: **K061**. Coverage: FR-008, FR-019, FR-020, V05, V14.
   Expected: Unknown/authenticating/old-generation snapshots never render children; only current verified user renders content.
   RED/behavior target: Tests in this task fail for protected rendering before implementation.
 
-- [ ] T062 [US1] Build reusable semantic fields with explicit errors and keyboard password visibility in `apps/web/test/auth-fields.test.tsx` and `apps/web/src/components/auth-fields.tsx`.
+- [x] T062 [US1] Build reusable semantic fields with explicit errors and keyboard password visibility in `apps/web/test/auth-fields.test.tsx` and `apps/web/src/components/auth-fields.tsx`.
   After: T061. Check: **K062**. Coverage: FR-006, FR-027, V18.
   Expected: Correct autocomplete; no HTML code-unit min/max authority for passwords; aria-invalid/describedby and announced submit errors.
   RED/behavior target: Tests in this task fail for labels/errors/visibility before implementation.
 
-- [ ] T063 [US1] Connect signup form and verified welcome page using controller actions/shared schemas in `apps/web/src/pages/signup.tsx` and `apps/web/src/pages/welcome.tsx`.
+- [x] T063 [US1] Connect signup form and verified welcome page using controller actions/shared schemas in `apps/web/src/pages/signup.tsx` and `apps/web/src/pages/welcome.tsx`.
   After: T062. Check: **K063**. Coverage: FR-001, FR-014, FR-027, V01, V18.
   Expected: Field feedback, synchronous duplicate lock, required welcome text; only verified completion navigates; partial account failure explains normal signin recovery.
   RED/behavior target: T045.
 
-- [ ] T064 [US1] Wire root app/router, signup and protected app routes with pre-render trust checks in `apps/web/src/main.tsx` and `apps/web/src/router.tsx`.
+- [x] T064 [US1] Wire root app/router, signup and protected app routes with pre-render trust checks in `apps/web/src/main.tsx` and `apps/web/src/router.tsx`.
   After: T063. Check: **K064**. Coverage: FR-001, FR-008, FR-020, V01, V05, V14.
   Expected: Fresh load checks identity; no cached user flash or StrictMode POST; signin destination is added in US2, not a fake page.
   RED/behavior target: T045.
 
-- [ ] T065 [US1] Run the signup/recovery vertical slice and record actual results in `docs/evidence/us1.md`.
+- [x] T065 [US1] Run the signup/recovery vertical slice and record actual results in `docs/evidence/us1.md`.
   After: T064. Check: **K065**. Coverage: FR-001, FR-002, FR-003, FR-004, FR-006, FR-009, FR-014, FR-031, V01, V02, V03, V12, V16.
   Expected: Signup/backend signin recovery/identity, validation, concurrency, session commit and minimal client tests pass; record runtime/results, no full-readiness claim.
 
