@@ -405,22 +405,22 @@ Playwright webServer runs the built same-origin app with explicit test origin/po
 
 ### Tests first
 
-- [ ] T066 [P] [US2] Add seeded-account signin/status/session-ID regression cases in `apps/api/test/auth.integration.test.ts`.
+- [x] T066 [P] [US2] Add seeded-account signin/status/session-ID regression cases in `apps/api/test/auth.integration.test.ts`.
   After: T065. Check: **K066**. Coverage: FR-001, FR-005, FR-007, FR-009, V04, V16.
   Expected: Valid canonical signin200, wrong/unknown credentials generic401, invalid signin input400, no signup composition enforcement, regenerated persistent session.
   RED/behavior target: Regression may already pass because US1 required recovery signin; record initial result, never fabricate RED.
 
-- [ ] T067 [P] [US2] Add retained-record idle/absolute expiry and bounded rolling integration cases in `apps/api/test/session.integration.test.ts`.
+- [x] T067 [P] [US2] Add retained-record idle/absolute expiry and bounded rolling integration cases in `apps/api/test/session.integration.test.ts`.
   After: T065. Check: **K067**. Coverage: FR-008, FR-010, FR-013, V05, V06, V17.
   Expected: Injected wall clock at 30min/8h equality; captured cookie still submitted; readable record retained; absolute metadata never resets; rejected requests do not renew.
   RED/behavior target: Regression may already pass from tested policy; any failing assertion is fixed before claiming US2.
 
-- [ ] T068 [P] [US2] Add signin-specific feedback, intended-account and refresh state assertions in `apps/web/test/auth-controller.test.ts`.
+- [x] T068 [P] [US2] Add signin-specific feedback, intended-account and refresh state assertions in `apps/web/test/auth-controller.test.ts`.
   After: T065. Check: **K068**. Coverage: FR-007, FR-008, FR-019, FR-024, V04, V05, V14.
   Expected: Explicit401 versus400/503; intended user matching; fresh bootstrap/refresh confirms; no stale protected content.
   RED/behavior target: Signin controller surface or outcome distinctions are missing.
 
-- [ ] T069 [US2] Add semantic signin form and refresh behavior assertions in `apps/web/test/forms.test.tsx`.
+- [x] T069 [US2] Add semantic signin form and refresh behavior assertions in `apps/web/test/forms.test.tsx`.
   After: T068. Check: **K069**. Coverage: FR-001, FR-027, V04, V05, V18.
   Expected: Email/password only; current-password autocomplete; busy lock; errors announced; authenticated refresh verifies identity.
   RED/behavior target: Signin page or intended submit feedback is absent.
@@ -428,22 +428,22 @@ Playwright webServer runs the built same-origin app with explicit test origin/po
 
 ### Implementation and integration
 
-- [ ] T070 [US2] Add signin action using the established generation/lock/reconciliation machinery in `apps/web/src/auth/auth-controller.ts`.
+- [x] T070 [US2] Add signin action using the established generation/lock/reconciliation machinery in `apps/web/src/auth/auth-controller.ts`.
   After: T069. Check: **K070**. Coverage: FR-005, FR-007, FR-019, FR-024, FR-026, V04, V14.
   Expected: Generic error only for explicit signin401; service/network errors unknown; no composition validation or silent POST retry.
   RED/behavior target: T068.
 
-- [ ] T071 [US2] Implement signin page and register its route without bypassing protected trust checks in `apps/web/src/pages/signin.tsx` and `apps/web/src/router.tsx`.
+- [x] T071 [US2] Implement signin page and register its route without bypassing protected trust checks in `apps/web/src/pages/signin.tsx` and `apps/web/src/router.tsx`.
   After: T070. Check: **K071**. Coverage: FR-001, FR-005, FR-008, FR-027, V04, V05, V18.
   Expected: Shared canonical schema and accessible fields; navigate only after intended-user verification; retain safe rejection feedback.
   RED/behavior target: T069.
 
-- [ ] T072 [US2] Add built-app anonymous, signin and refresh E2E plus actual persistent-browser restart case in `tests/e2e/auth.spec.ts`.
+- [x] T072 [US2] Add built-app anonymous, signin and refresh E2E plus actual persistent-browser restart case in `tests/e2e/auth.spec.ts`.
   After: T071, T066, T067. Check: **K072**. Coverage: FR-001, FR-008, FR-010, V04, V05, V15.
   Expected: Launch/close/relaunch persistent browser profile; fresh/me confirms valid cookie; anonymous direct API denies; tests fail for missing DB/server, not skip.
   RED/behavior target: Browser integration may reveal a missing startup/persistence seam; existing flows are regression coverage, not fabricated failing unit work.
 
-- [ ] T073 [US2] Record seeded signin, refresh/restart and both expiration proofs in `docs/evidence/us2.md`.
+- [x] T073 [US2] Record seeded signin, refresh/restart and both expiration proofs in `docs/evidence/us2.md`.
   After: T072. Check: **K073**. Coverage: FR-001, FR-005, FR-007, FR-008, FR-010, FR-031, V04, V05, V06, V15.
   Expected: US2 scenarios pass with actual HTTP/database/browser results; independent of signup UI; expiration outages never successful auth.
 
@@ -799,7 +799,7 @@ Run from repository root under the selected runtime. K-number matches T-number. 
 | K069 | `npm run test:unit --workspace @easygen/web -- test/forms.test.tsx -t 'signin-form:'` |
 | K070 | `npm run test:unit --workspace @easygen/web -- test/auth-controller.test.ts -t 'signin-state:'` |
 | K071 | `npm run test:unit --workspace @easygen/web -- test/forms.test.tsx -t 'signin-form:'` |
-| K072 | `npm run build && npx playwright test tests/e2e/auth.spec.ts -g 'signin\|refresh\|restart' --project=chromium` |
+| K072 | `npm run build && npx playwright test tests/e2e/auth.spec.ts --project=chromium` |
 | K073 | `npm run test:integration && npm run test:unit --workspace @easygen/web && npm run build && npx playwright test tests/e2e/auth.spec.ts --project=chromium` |
 | K074 | `npm run build:test:api -- apps/api/test/session.integration.test.ts && node --test --test-name-pattern='logout:' apps/api/dist-test/targets/session.integration.test/test/session.integration.test.js` |
 | K075 | `npm run test:unit --workspace @easygen/web -- test/auth-controller.test.ts -t 'logout-state:'` |

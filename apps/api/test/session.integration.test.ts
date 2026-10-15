@@ -80,6 +80,15 @@ function sessionCookie(response: SupertestResponse, fixture: MongoFixture): stri
   return cookie.split(";", 1)[0] ?? "";
 }
 
+function sessionCookieExpiry(response: SupertestResponse, fixture: MongoFixture): number {
+  const cookieName = sessionCookieConfiguration(fixture.config.nodeEnv).name;
+  const cookie = cookieHeaders(response).find((header) => header.startsWith(`${cookieName}=`));
+  assert.ok(cookie, "renewal must return the bounded session cookie");
+  const expires = /;\s*Expires=([^;]+)/i.exec(cookie)?.[1];
+  assert.ok(expires, "session cookie must carry an explicit deadline");
+  return new Date(expires).getTime();
+}
+
 function cookieHeaders(response: SupertestResponse): string[] {
   const header: unknown = response.headers["set-cookie"];
   if (typeof header === "string") return [header];
@@ -294,4 +303,81 @@ void test("establish: renewal denies a request whose save crosses the absolute d
   assert.equal(response.status, 401, response.text);
   assert.equal(responseError(response).code, "UNAUTHENTICATED");
   assert.equal(response.headers["cache-control"], "no-store");
+});
+
+void test("expiration: idle deadline equality rejects a captured cookie while retaining the session record", async (context) => {
+  const clock = createControlledClock(Date.now());
+  const fixture = await fixtureFor(context, clock);
+  const signup = await postJson(fixture, fixture.agent, "/api/auth/signup", credentials);
+  assert.equal(signup.status, 201, signup.text);
+  const cookie = sessionCookie(signup, fixture);
+  const before = await readStoredSession(fixture);
+  assert.ok(before.auth && before.cookie?.expires);
+  const idleDeadline = before.auth.lastActivityAt + SESSION_IDLE_TIMEOUT_MS;
+  clock.set(idleDeadline);
+
+  const response = await supertest(fixture.app.getHttpServer())
+    .get("/api/auth/me")
+    .set("Origin", fixture.config.appOrigin)
+    .set("Cookie", cookie);
+
+  assert.equal(response.status, 401, response.text);
+  assert.equal(responseError(response).code, "UNAUTHENTICATED");
+  assert.equal(response.headers["cache-control"], "no-store");
+  assert.equal(await fixture.database.collection("sessions").countDocuments(), 1, "Mongo TTL cleanup must not decide authorization");
+  const after = await readStoredSession(fixture);
+  assert.deepEqual(after.auth, before.auth, "idle rejection must not renew session activity");
+  assert.equal(after.cookie?.expires, before.cookie.expires);
+});
+
+void test("expiration: rolling activity is bounded by the absolute deadline and equality rejects the retained record", async (context) => {
+  const clock = createControlledClock(Date.now());
+  const fixture = await fixtureFor(context, clock);
+  const signup = await postJson(fixture, fixture.agent, "/api/auth/signup", credentials);
+  assert.equal(signup.status, 201, signup.text);
+  let cookie = sessionCookie(signup, fixture);
+  const initial = await readStoredSession(fixture);
+  assert.ok(initial.auth);
+  const absoluteDeadline = initial.auth.authenticatedAt + SESSION_ABSOLUTE_TIMEOUT_MS;
+  const client = supertest(fixture.app.getHttpServer());
+
+  for (let renewal = 1; renewal <= 15; renewal += 1) {
+    clock.set(initial.auth.authenticatedAt + renewal * (SESSION_IDLE_TIMEOUT_MS - 1_000));
+    const response = await client
+      .get("/api/auth/me")
+      .set("Origin", fixture.config.appOrigin)
+      .set("Cookie", cookie);
+    assert.equal(response.status, 200, response.text);
+    cookie = sessionCookie(response, fixture);
+    assert.equal(cookie, sessionCookie(signup, fixture), "ordinary activity must not rotate the session id");
+  }
+
+  clock.set(absoluteDeadline - 60_000);
+  const lastActive = await client
+    .get("/api/auth/me")
+    .set("Origin", fixture.config.appOrigin)
+    .set("Cookie", cookie);
+  assert.equal(lastActive.status, 200, lastActive.text);
+  const cookieExpiry = sessionCookieExpiry(lastActive, fixture);
+  assert.ok(
+    cookieExpiry <= absoluteDeadline && cookieExpiry > absoluteDeadline - 1_000,
+    "HTTP cookie expiry must stop at the absolute deadline (with its one-second date precision)",
+  );
+  cookie = sessionCookie(lastActive, fixture);
+  const beforeAbsoluteExpiry = await readStoredSession(fixture);
+  assert.ok(beforeAbsoluteExpiry.auth && beforeAbsoluteExpiry.cookie?.expires);
+  assert.equal(beforeAbsoluteExpiry.auth.authenticatedAt, initial.auth.authenticatedAt);
+  assert.equal(beforeAbsoluteExpiry.auth.lastActivityAt, absoluteDeadline - 60_000);
+
+  clock.set(absoluteDeadline);
+  const expired = await client
+    .get("/api/auth/me")
+    .set("Origin", fixture.config.appOrigin)
+    .set("Cookie", cookie);
+  assert.equal(expired.status, 401, expired.text);
+  assert.equal(responseError(expired).code, "UNAUTHENTICATED");
+  assert.equal(await fixture.database.collection("sessions").countDocuments(), 1, "the retained Mongo record must remain unauthorized");
+  const afterAbsoluteExpiry = await readStoredSession(fixture);
+  assert.deepEqual(afterAbsoluteExpiry.auth, beforeAbsoluteExpiry.auth, "absolute rejection must not renew session metadata");
+  assert.equal(afterAbsoluteExpiry.cookie?.expires, beforeAbsoluteExpiry.cookie.expires);
 });

@@ -1,5 +1,5 @@
 import { useRef, useState, type SyntheticEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { SignupSchema } from '@easygen/auth-contract';
 import { AuthFields, type AuthFieldErrors, type AuthFieldName } from '../components/auth-fields.js';
 import { useAuth } from '../auth/auth-context.js';
@@ -84,5 +84,6 @@ export function SignupPage(): React.JSX.Element {
         {submitting || snapshot.pendingOperation === 'signup' ? 'Creating account…' : 'Create account'}
       </button>
     </form>
+    <p>Already have an account? <Link to="/signin">Sign in</Link></p>
   </main>;
 }

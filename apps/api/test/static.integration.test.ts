@@ -3,7 +3,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
+import express from "express";
+import supertest from "supertest";
 import {
+  createSecurityHeaders,
   resolveBuiltAssetsDirectory,
   resolveWorkspaceAssetsDirectory,
 } from "../src/bootstrap.js";
@@ -14,6 +17,20 @@ function header(response: { readonly headers: Readonly<Record<string, unknown>> 
   if (typeof value !== "string") throw new Error(`Expected response header ${name}`);
   return value;
 }
+
+async function contentSecurityPolicy(nodeEnv: "development" | "test" | "production"): Promise<string> {
+  const app = express();
+  app.use(createSecurityHeaders(nodeEnv));
+  app.get("/", (_request, response) => { response.status(200).send("ok"); });
+  return header(await supertest(app).get("/").expect(200), "content-security-policy");
+}
+
+void test("security headers upgrade insecure requests only in production", async () => {
+  for (const nodeEnv of ["development", "test"] as const) {
+    assert.doesNotMatch(await contentSecurityPolicy(nodeEnv), /upgrade-insecure-requests/i);
+  }
+  assert.match(await contentSecurityPolicy("production"), /upgrade-insecure-requests/i);
+});
 
 void test("static: serves assets and SPA routes with Helmet while keeping API misses JSON", async () => {
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "easygen-assets-"));
@@ -27,6 +44,7 @@ void test("static: serves assets and SPA routes with Helmet while keeping API mi
     const asset = await fixture.agent.get("/app.js").expect(200);
     assert.match(header(asset, "content-type"), /javascript/);
     assert.match(header(asset, "x-content-type-options"), /nosniff/);
+    assert.doesNotMatch(header(asset, "content-security-policy"), /upgrade-insecure-requests/i);
     assert.equal(asset.text, "globalThis.easygen = true;");
 
     const route = await fixture.agent.get("/account/profile").expect(200);

@@ -1,14 +1,18 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { ApiErrorSchema, PublicUserSchema } from "@easygen/auth-contract";
 import { getModelToken } from "@nestjs/mongoose";
 import { MongoNetworkError, ObjectId } from "mongodb";
+import type { SessionData } from "express-session";
 import type { Model } from "mongoose";
 import supertest, { type Agent, type Response as SupertestResponse } from "supertest";
 import { test, type TestContext } from "node:test";
 import type { ApiError, PublicUser } from "@easygen/auth-contract";
+import { PASSWORD_SERVICE } from "../src/app.module.js";
 import { createRealMongoFixture, type MongoFixture } from "./support/fixture.js";
 import { USER_MODEL_NAME, type UserRecord } from "../src/auth/user.schema.js";
 import { sessionCookieConfiguration } from "../src/session/cookie.js";
+import { PasswordService } from "../src/security/password.service.js";
 
 const signupBody = { email: "ada@example.com", name: "Ada Lovelace", password: "Abcdef1!" };
 const policies = {
@@ -45,6 +49,42 @@ function cookieHeaders(response: SupertestResponse): string[] {
   if (typeof header === "string") return [header];
   if (!Array.isArray(header)) return [];
   return header.filter((value): value is string => typeof value === "string");
+}
+
+function sessionCookie(response: SupertestResponse, fixture: MongoFixture): string {
+  const cookieName = sessionCookieConfiguration(fixture.config.nodeEnv).name;
+  const cookie = cookieHeaders(response).find((header) => header.startsWith(`${cookieName}=`));
+  assert.ok(cookie, "authentication must set the configured session cookie");
+  return cookie.split(";", 1)[0] ?? "";
+}
+
+function signedCookie(fixture: MongoFixture, sessionId: string): string {
+  const cookieName = sessionCookieConfiguration(fixture.config.nodeEnv).name;
+  const signature = createHmac("sha256", fixture.config.sessionSecret)
+    .update(sessionId)
+    .digest("base64")
+    .replace(/=+$/, "");
+  return `${cookieName}=${encodeURIComponent(`s:${sessionId}.${signature}`)}`;
+}
+
+async function seedAnonymousSession(fixture: MongoFixture, sessionId: string): Promise<void> {
+  const expires = new Date(fixture.clock.now() + 60 * 60 * 1_000);
+  const session: SessionData = {
+    cookie: {
+      originalMaxAge: 60 * 60 * 1_000,
+      expires,
+      httpOnly: true,
+      path: "/",
+      secure: false,
+      sameSite: "strict",
+    },
+  };
+  await new Promise<void>((resolve, reject) => {
+    fixture.store.set(sessionId, session, (error) => {
+      if (error) reject(error instanceof Error ? error : new Error("Anonymous session seed failed"));
+      else resolve();
+    });
+  });
 }
 
 function storedAuth(serialized: unknown): StoredAuth {
@@ -154,6 +194,55 @@ void test("signin: a canonically equivalent NFC password authenticates the same 
   const identity = await fixture.agent.get("/api/auth/me").set("Origin", fixture.config.appOrigin);
   assert.equal(identity.status, 200, identity.text);
   assert.deepEqual(responseUser(identity), responseUser(signin));
+});
+
+void test("signin: seeded account accepts a preexisting password and replaces the presented session", async (context) => {
+  const fixture = await fixtureFor(context);
+  const users = fixture.app.get<Model<UserRecord>>(getModelToken(USER_MODEL_NAME));
+  const passwords = fixture.app.get<PasswordService>(PASSWORD_SERVICE);
+  const passwordHash = await passwords.hash("x");
+  const seeded = await users.create({
+    email: "grace@example.com",
+    name: "Grace Hopper",
+    passwordHash,
+  });
+  const oldSessionId = "seeded_anonymous_session_001";
+  await seedAnonymousSession(fixture, oldSessionId);
+  const oldCookie = signedCookie(fixture, oldSessionId);
+
+  const signin = await postJson(
+    fixture,
+    supertest(fixture.app.getHttpServer()),
+    "/api/auth/signin",
+    { email: " GRACE@example.com ", password: "x" },
+  ).set("Cookie", oldCookie);
+
+  assert.equal(signin.status, 200, signin.text);
+  assert.deepEqual(responseUser(signin), {
+    id: seeded._id.toHexString(),
+    email: "grace@example.com",
+    name: "Grace Hopper",
+  });
+  assert.equal(signin.headers["cache-control"], "no-store");
+  const newCookie = sessionCookie(signin, fixture);
+  assert.notEqual(newCookie, oldCookie, "signin must rotate the presented anonymous session");
+  const records = await fixture.database.collection("sessions").find().toArray();
+  assert.equal(records.length, 1, "the old session must be replaced with one persisted authenticated session");
+  assert.notEqual(records[0]?.["_id"], oldSessionId);
+  const authenticated = storedAuth(records[0]?.["session"]);
+  assert.equal(authenticated.userId, seeded._id.toHexString());
+  assert.doesNotMatch(String(records[0]?.["session"]), /passwordHash|"password"/i);
+  assert.equal(await fixture.database.collection("users").countDocuments(), 1, "signin must not require signup composition or create another account");
+
+  const invalid = await postJson(
+    fixture,
+    supertest(fixture.app.getHttpServer()),
+    "/api/auth/signin",
+    { email: "grace@example.com", password: "" },
+  );
+  assert.equal(invalid.status, 400, invalid.text);
+  assert.equal(responseError(invalid).code, "VALIDATION_ERROR");
+  assert.equal(await fixture.database.collection("users").countDocuments(), 1);
 });
 
 void test("signin: unknown email and wrong password use the same generic error", async (context) => {

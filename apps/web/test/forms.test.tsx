@@ -1,11 +1,12 @@
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, RouterProvider } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
-import type { PublicUser, SignupInput } from "@easygen/auth-contract";
+import type { PublicUser, SigninInput, SignupInput } from "@easygen/auth-contract";
 import type { OperationResult } from "../src/auth/auth-controller.js";
 import { AuthProvider } from "../src/auth/auth-context.js";
 import { ProtectedRoute } from "../src/auth/protected-route.js";
+import { appRouter } from "../src/router.js";
 import { SignupPage } from "../src/pages/signup.js";
 import { WelcomePage } from "../src/pages/welcome.js";
 
@@ -19,6 +20,7 @@ type Snapshot = {
   readonly queuedLogout: boolean;
   readonly slow: boolean;
   readonly submissionErrors: Readonly<Record<string, readonly string[]>>;
+  readonly message?: string;
   readonly lastOperationOutcome: OperationResult["outcome"] | null;
   readonly serverObservation: "unknown" | "authenticated" | "anonymous";
   readonly serverOutcomeUncertain: boolean;
@@ -107,6 +109,47 @@ class FormsController {
   }
 }
 
+class SigninFormsController {
+  snapshot = initialSnapshot();
+  readonly listeners = new Set<() => void>();
+  readonly signinInputs: SigninInput[] = [];
+  private resolveSignin?: (result: OperationResult) => void;
+
+  getSnapshot = (): Snapshot => this.snapshot;
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+
+  revalidate = (): Promise<void> => Promise.resolve();
+
+  signin = (input: SigninInput): Promise<OperationResult> => {
+    this.signinInputs.push(input);
+    this.update({ status: "authenticating", pendingOperation: "signin", routeTrusted: false });
+    return new Promise((resolve) => { this.resolveSignin = resolve; });
+  };
+
+  update(values: Partial<Snapshot>): void {
+    this.snapshot = { ...this.snapshot, ...values };
+    for (const listener of this.listeners) listener();
+  }
+
+  confirmSignin(user: PublicUser = signedInUser): void {
+    this.update({ status: "authenticated", generation: 1, verifiedGeneration: 1, latestReadId: 1,
+      routeTrusted: true, pendingOperation: null, lastOperationOutcome: "confirmed",
+      serverObservation: "authenticated", user });
+    this.resolveSignin?.({ outcome: "confirmed" });
+  }
+
+  rejectSignin(): void {
+    this.update({ status: "unauthenticated", generation: 1, verifiedGeneration: null, latestReadId: 1,
+      routeTrusted: true, pendingOperation: null, lastOperationOutcome: "rejected",
+      serverObservation: "anonymous", message: "Invalid email or password." });
+    this.resolveSignin?.({ outcome: "rejected", message: "Invalid email or password." });
+  }
+}
+
 function renderRoutes(controller: FormsController, initialEntry: string) {
   return render(
     <AuthProvider controller={controller as never}>
@@ -117,6 +160,15 @@ function renderRoutes(controller: FormsController, initialEntry: string) {
           <Route path="/signin" element={<p>Sign in route</p>} />
         </Routes>
       </MemoryRouter>
+    </AuthProvider>,
+  );
+}
+
+async function renderApplication(controller: SigninFormsController, initialEntry: string) {
+  await act(async () => { await appRouter.navigate(initialEntry); });
+  return render(
+    <AuthProvider controller={controller as never}>
+      <RouterProvider router={appRouter} />
     </AuthProvider>,
   );
 }
@@ -199,5 +251,62 @@ describe("signup-form:", () => {
       });
     });
     expect(screen.getByText("Welcome to the application.")).toBeTruthy();
+  });
+});
+
+describe("signin-form:", () => {
+  it("uses only semantic email and password fields with current-password autocomplete", async () => {
+    const controller = new SigninFormsController();
+    await renderApplication(controller, "/signin");
+
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Email" })).toBeTruthy();
+    const password = screen.getByLabelText<HTMLInputElement>("Password");
+    expect(password.autocomplete).toBe("current-password");
+    expect(screen.queryByLabelText("Name")).toBeNull();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
+  });
+
+  it("restores a working sign-in link from signup", async () => {
+    const user = userEvent.setup();
+    const controller = new SigninFormsController();
+    await renderApplication(controller, "/signup");
+
+    await user.click(await screen.findByRole("link", { name: /sign in/i }));
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeTruthy();
+  });
+
+  it("locks duplicate submit and navigates only after the intended identity is verified", async () => {
+    const user = userEvent.setup();
+    const controller = new SigninFormsController();
+    await renderApplication(controller, "/signin");
+
+    await user.type(await screen.findByRole("textbox", { name: "Email" }), "ada@example.test");
+    await user.type(screen.getByLabelText<HTMLInputElement>("Password"), "short");
+    const submit = screen.getByRole<HTMLButtonElement>("button", { name: "Sign in" });
+    await user.click(submit);
+    expect(submit.disabled).toBe(true);
+    await user.click(submit);
+    expect(controller.signinInputs).toEqual([{ email: "ada@example.test", password: "short" }]);
+
+    act(() => { controller.confirmSignin(); });
+    await waitFor(() => { expect(screen.getByText("Welcome to the application.")).toBeTruthy(); });
+  });
+
+  it("announces generic credential rejection without navigating or revealing account existence", async () => {
+    const user = userEvent.setup();
+    const controller = new SigninFormsController();
+    await renderApplication(controller, "/signin");
+
+    await user.type(await screen.findByRole("textbox", { name: "Email" }), "ada@example.test");
+    await user.type(screen.getByLabelText<HTMLInputElement>("Password"), "short");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    act(() => { controller.rejectSignin(); });
+
+    const feedback = await screen.findByRole("alert");
+    expect(feedback.textContent).toBe("Invalid email or password.");
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
+    expect(screen.queryByText("Welcome to the application.")).toBeNull();
+    expect(controller.signinInputs).toEqual([{ email: "ada@example.test", password: "short" }]);
   });
 });

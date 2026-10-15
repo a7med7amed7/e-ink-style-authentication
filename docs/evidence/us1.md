@@ -9,7 +9,7 @@ Runtime: Node `v24.22.0`, npm `11.19.1`. The Docker Playwright smoke used the di
 
 ## Compiled Chromium smoke
 
-Built shared, API, and web artifacts with `npm run build` (exit 0). Started the compiled API with Node `v24.22.0` in `NODE_ENV=test`, serving the built web app and using a fresh isolated Mongo database named `easygen_us1_browser_smoke`.
+Built shared, API, and web artifacts with `npm run build` (exit 0). After the fetch binding fix, the client owner rebuilt the web app; the smoke loaded `apps/web/dist/assets/index-CMcL_oJR.js`, whose generated code includes `fetch.bind(globalThis)`. Started the compiled API with Node `v24.22.0` in `NODE_ENV=test`, serving the built web app and using a fresh isolated Mongo database named `easygen_us1_browser_smoke`.
 
 The browser filled the semantic Email, Name, and Password fields with a fresh account and submitted once. Observed results:
 

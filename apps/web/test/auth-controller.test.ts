@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { PublicUser, SignupInput } from '@easygen/auth-contract';
+import type { ApiError, PublicUser, SigninInput, SignupInput } from '@easygen/auth-contract';
 import { AuthApiError, type AuthApi } from '../src/api/auth-api.js';
 import { AuthController } from '../src/auth/auth-controller.js';
 import { deferred } from './support/deferred.js';
@@ -22,6 +22,11 @@ const signupInput: SignupInput = {
   password: 'N0tARealPassword!'
 };
 
+const signinInput: SigninInput = {
+  email: 'ada@example.test',
+  password: 'short'
+};
+
 function makeApi() {
   const calls = {
     signup: vi.fn<AuthApi['signup']>(),
@@ -37,6 +42,24 @@ function apiFailure(kind: 'unauthenticated' | 'network' | 'malformed' | 'rejecte
   return kind === 'unauthenticated'
     ? new AuthApiError(kind, kind, { status: 401 })
     : new AuthApiError(kind, kind);
+}
+
+function signinFailure(
+  kind: 'rejected' | 'http',
+  status: number,
+  code: string,
+  message: string,
+  fields?: ApiError['error']['fields']
+): AuthApiError {
+  const apiError: ApiError = {
+    error: {
+      code,
+      message,
+      requestId: `signin-${String(status)}`,
+      ...(fields === undefined ? {} : { fields })
+    }
+  };
+  return new AuthApiError(kind, message, { status, apiError });
 }
 
 describe('signup-state:', () => {
@@ -247,5 +270,153 @@ describe('signup-state:', () => {
 
     fields.email.push('Changed after publication.');
     expect(snapshot.submissionErrors.email).toEqual(['Enter a valid email address.']);
+  });
+});
+
+describe('signin-state:', () => {
+  it('signin-state: explicit 401 uses generic credential feedback after anonymous confirmation', async () => {
+    const { api, calls } = makeApi();
+    calls.signin.mockRejectedValue(signinFailure(
+      'rejected', 401, 'INVALID_CREDENTIALS', 'The email address does not exist.'
+    ));
+    calls.me.mockRejectedValue(apiFailure('unauthenticated'));
+    const controller = new AuthController(api);
+
+    await expect(controller.signin(signinInput)).resolves.toEqual({
+      outcome: 'rejected',
+      message: 'Invalid email or password.'
+    });
+
+    expect(calls.signin).toHaveBeenCalledWith(signinInput);
+    expect(controller.getSnapshot()).toMatchObject({
+      status: 'unauthenticated',
+      routeTrusted: true,
+      serverObservation: 'anonymous',
+      serverOutcomeUncertain: false,
+      message: 'Invalid email or password.'
+    });
+  });
+
+  it('signin-state: validation and service failures remain distinct from invalid credentials', async () => {
+    const validation = makeApi();
+    validation.calls.signin.mockRejectedValue(signinFailure(
+      'http', 400, 'VALIDATION_ERROR', 'The request is invalid.',
+      { email: ['Enter a valid email address.'] }
+    ));
+    validation.calls.me.mockRejectedValue(apiFailure('unauthenticated'));
+    const validationController = new AuthController(validation.api);
+
+    await expect(validationController.signin(signinInput)).resolves.toMatchObject({
+      outcome: 'rejected',
+      message: 'The request is invalid.'
+    });
+    expect(validationController.getSnapshot()).toMatchObject({
+      status: 'unauthenticated',
+      submissionErrors: { email: ['Enter a valid email address.'] },
+      serverOutcomeUncertain: false
+    });
+
+    const unavailable = makeApi();
+    unavailable.calls.signin.mockRejectedValue(signinFailure(
+      'http', 503, 'SERVICE_UNAVAILABLE', 'Service is temporarily unavailable.'
+    ));
+    unavailable.calls.me.mockRejectedValue(apiFailure('unauthenticated'));
+    const unavailableController = new AuthController(unavailable.api);
+
+    await expect(unavailableController.signin(signinInput)).resolves.toEqual({
+      outcome: 'uncertain',
+      message: "We couldn't confirm sign-in. Check session again."
+    });
+    expect(unavailable.calls.signin).toHaveBeenCalledTimes(1);
+    expect(unavailableController.getSnapshot()).toMatchObject({
+      status: 'unknown',
+      routeTrusted: false,
+      serverObservation: 'anonymous',
+      serverOutcomeUncertain: true
+    });
+  });
+
+  it('signin-state: confirms only the intended user and does not apply signup password composition', async () => {
+    const matched = makeApi();
+    matched.calls.signin.mockResolvedValue(user);
+    matched.calls.me.mockResolvedValue(user);
+    const matchedController = new AuthController(matched.api);
+
+    await expect(matchedController.signin(signinInput)).resolves.toEqual({ outcome: 'confirmed' });
+    expect(matched.calls.signin).toHaveBeenCalledWith(signinInput);
+    expect(matchedController.getSnapshot()).toMatchObject({
+      status: 'authenticated',
+      user,
+      routeTrusted: true,
+      lastOperationOutcome: 'confirmed'
+    });
+
+    const mismatched = makeApi();
+    mismatched.calls.signin.mockResolvedValue(user);
+    mismatched.calls.me.mockResolvedValue({ ...user, id: otherUser.id });
+    const mismatchedController = new AuthController(mismatched.api);
+
+    await expect(mismatchedController.signin(signinInput)).resolves.toMatchObject({
+      outcome: 'verification-failed'
+    });
+    expect(mismatchedController.getSnapshot()).toMatchObject({
+      status: 'unknown',
+      user: undefined,
+      routeTrusted: false,
+      serverObservation: 'authenticated'
+    });
+  });
+
+  it('signin-state: a later identity recheck confirms observation without erasing uncertainty', async () => {
+    const { api, calls } = makeApi();
+    calls.signin.mockRejectedValue(apiFailure('network'));
+    calls.me.mockRejectedValueOnce(apiFailure('unauthenticated')).mockResolvedValueOnce(user);
+    const controller = new AuthController(api);
+
+    await expect(controller.signin(signinInput)).resolves.toMatchObject({ outcome: 'uncertain' });
+    await controller.revalidate('retry');
+
+    expect(calls.signin).toHaveBeenCalledTimes(1);
+    expect(controller.getSnapshot()).toMatchObject({
+      status: 'authenticated',
+      user,
+      routeTrusted: true,
+      serverObservation: 'authenticated',
+      serverOutcomeUncertain: true,
+      lastOperationOutcome: 'uncertain',
+      message: "We couldn't confirm sign-in. Check session again."
+    });
+  });
+
+  it('signin-state: clears stale identity immediately and shares the synchronous mutation lock', async () => {
+    const { api, calls } = makeApi();
+    const staleRead = deferred<PublicUser>();
+    const post = deferred<PublicUser>();
+    calls.me.mockResolvedValueOnce(user).mockImplementationOnce(() => staleRead.promise).mockResolvedValue(user);
+    calls.signin.mockReturnValue(post.promise);
+    const controller = new AuthController(api);
+
+    await controller.revalidate('bootstrap');
+    const oldRead = controller.revalidate('retry');
+    expect(controller.getSnapshot()).toMatchObject({ status: 'authenticated', user, routeTrusted: false });
+    const signin = controller.signin(signinInput);
+    await expect(controller.signin(signinInput)).resolves.toEqual({ outcome: 'busy' });
+    await expect(controller.signup(signupInput)).resolves.toEqual({ outcome: 'busy' });
+    staleRead.resolve(otherUser);
+    await oldRead;
+
+    expect(calls.signin).toHaveBeenCalledTimes(1);
+    expect(calls.signup).not.toHaveBeenCalled();
+    expect(controller.getSnapshot()).toMatchObject({
+      status: 'authenticating',
+      user: undefined,
+      verifiedGeneration: null,
+      routeTrusted: false,
+      pendingOperation: 'signin'
+    });
+
+    post.resolve(user);
+    await expect(signin).resolves.toEqual({ outcome: 'confirmed' });
+    expect(controller.getSnapshot()).toMatchObject({ status: 'authenticated', user });
   });
 });

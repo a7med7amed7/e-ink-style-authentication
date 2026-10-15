@@ -62,6 +62,15 @@ function isApiPath(path: string): boolean {
   return normalized === "/api" || normalized.startsWith("/api/");
 }
 
+export function createSecurityHeaders(nodeEnv: ApiConfig["nodeEnv"]) {
+  if (nodeEnv === "production") return helmet();
+  return helmet({
+    contentSecurityPolicy: {
+      directives: { upgradeInsecureRequests: null },
+    },
+  });
+}
+
 declare module "express-serve-static-core" {
   interface Request {
     requestId?: string;
@@ -98,7 +107,7 @@ export async function buildApp(
       next();
     });
 
-    app.use(helmet());
+    app.use(createSecurityHeaders(options.config.nodeEnv));
     app.use(createOriginMiddleware(options.config.appOrigin));
 
     const assetsDirectory = resolveAssetsDirectory(options);

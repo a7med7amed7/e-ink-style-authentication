@@ -1,4 +1,4 @@
-import { PublicUserSchema, type PublicUser, type SignupInput } from '@easygen/auth-contract';
+import { PublicUserSchema, type PublicUser, type SigninInput, type SignupInput } from '@easygen/auth-contract';
 import { AuthApiError, type AuthApi } from '../api/auth-api.js';
 
 export type Operation = 'signup' | 'signin' | 'logout';
@@ -42,8 +42,8 @@ function freezeSubmissionErrors(errors: SubmissionErrors): SubmissionErrors {
   return Object.freeze(copied);
 }
 
-interface ActiveSignup { readonly generation: number }
-type SignupPost = { readonly ok: true; readonly user: PublicUser }
+interface ActiveMutation { readonly generation: number }
+type AuthPost = { readonly ok: true; readonly user: PublicUser }
   | { readonly ok: false; readonly error: unknown };
 
 export class AuthController {
@@ -51,7 +51,7 @@ export class AuthController {
   private readonly listeners = new Set<() => void>();
   private generation = 0;
   private readId = 0;
-  private activeSignup: ActiveSignup | null = null;
+  private activeMutation: ActiveMutation | null = null;
 
   constructor(private readonly api: AuthApi) {}
   getSnapshot = (): AuthSnapshot => this.snapshot;
@@ -69,7 +69,7 @@ export class AuthController {
       case 'retry':
         break;
     }
-    if (this.activeSignup !== null) return;
+    if (this.activeMutation !== null) return;
     const generation = this.generation;
     const readId = ++this.readId;
     this.publish({ ...this.snapshot, latestReadId: readId, routeTrusted: false });
@@ -91,26 +91,50 @@ export class AuthController {
   }
 
   signup(input: SignupInput): Promise<OperationResult> {
-    if (this.activeSignup !== null) return Promise.resolve({ outcome: 'busy' });
-    const generation = ++this.generation;
-    const readId = ++this.readId;
-    const active = { generation };
-    this.activeSignup = active;
-    this.publish({ ...this.snapshot, status: 'authenticating', user: undefined, generation,
-      verifiedGeneration: null, latestReadId: readId, routeTrusted: false, pendingOperation: 'signup',
-      queuedLogout: false, slow: false, submissionErrors: {}, message: undefined,
-      lastOperationOutcome: null, logoutDestructionReceipt: null });
+    const active = this.beginMutation('signup');
+    if (active === null) return Promise.resolve({ outcome: 'busy' });
     return this.runSignup(active, input);
   }
 
-  private async runSignup(active: ActiveSignup, input: SignupInput): Promise<OperationResult> {
-    let post: SignupPost;
-    try { post = { ok: true, user: PublicUserSchema.parse(await this.api.signup(input)) }; }
-    catch (error) { post = { ok: false, error }; }
-    return this.reconcileSignup(active, input.email.trim().toLowerCase(), post);
+  signin(input: SigninInput): Promise<OperationResult> {
+    const active = this.beginMutation('signin');
+    if (active === null) return Promise.resolve({ outcome: 'busy' });
+    return this.runSignin(active, input);
   }
 
-  private async reconcileSignup(active: ActiveSignup, email: string, post: SignupPost): Promise<OperationResult> {
+  private beginMutation(operation: 'signup' | 'signin'): ActiveMutation | null {
+    if (this.activeMutation !== null) return null;
+    const generation = ++this.generation;
+    const readId = ++this.readId;
+    const active = { generation };
+    this.activeMutation = active;
+    this.publish({ ...this.snapshot, status: 'authenticating', user: undefined, generation,
+      verifiedGeneration: null, latestReadId: readId, routeTrusted: false, pendingOperation: operation,
+      queuedLogout: false, slow: false, submissionErrors: {}, message: undefined,
+      lastOperationOutcome: null, logoutDestructionReceipt: null });
+    return active;
+  }
+
+  private async runSignup(active: ActiveMutation, input: SignupInput): Promise<OperationResult> {
+    let post: AuthPost;
+    try { post = { ok: true, user: PublicUserSchema.parse(await this.api.signup(input)) }; }
+    catch (error) { post = { ok: false, error }; }
+    return this.reconcileAuthentication(active, input.email.trim().toLowerCase(), post, 'signup');
+  }
+
+  private async runSignin(active: ActiveMutation, input: SigninInput): Promise<OperationResult> {
+    let post: AuthPost;
+    try { post = { ok: true, user: PublicUserSchema.parse(await this.api.signin(input)) }; }
+    catch (error) { post = { ok: false, error }; }
+    return this.reconcileAuthentication(active, input.email.trim().toLowerCase(), post, 'signin');
+  }
+
+  private async reconcileAuthentication(
+    active: ActiveMutation,
+    email: string,
+    post: AuthPost,
+    operation: 'signup' | 'signin'
+  ): Promise<OperationResult> {
     const readId = ++this.readId;
     this.publish({ ...this.snapshot, latestReadId: readId });
     let observation: ServerObservation = 'unknown';
@@ -121,7 +145,7 @@ export class AuthController {
     } catch (error) {
       if (error instanceof AuthApiError && error.kind === 'unauthenticated') observation = 'anonymous';
     }
-    if (this.activeSignup !== active || this.generation !== active.generation || this.readId !== readId) {
+    if (this.activeMutation !== active || this.generation !== active.generation || this.readId !== readId) {
       return { outcome: 'uncertain' };
     }
     const matches = observedUser?.email === email && (!post.ok || observedUser.id === post.user.id);
@@ -133,13 +157,21 @@ export class AuthController {
       : observation === 'anonymous' && !post.ok && !uncertain ? 'unauthenticated' : 'unknown';
     const submissionErrors = !post.ok && post.error instanceof AuthApiError
       ? post.error.apiError?.error.fields ?? {} : {};
+    const invalidSignin = operation === 'signin' && !post.ok && post.error instanceof AuthApiError
+      && post.error.kind === 'rejected' && post.error.status === 401;
     const message = verified && uncertain ? 'Session verified'
-      : post.ok && !verified ? 'We could not verify the new session. Check session again.'
-        : !post.ok && uncertain ? "We couldn't confirm sign-up. Check session again."
-          : !post.ok ? post.error instanceof AuthApiError
-            ? post.error.apiError?.error.message ?? 'We could not complete sign-up.'
-            : 'We could not complete sign-up.' : undefined;
-    this.activeSignup = null;
+      : post.ok && !verified ? operation === 'signup'
+        ? 'We could not verify the new session. Check session again.'
+        : 'We could not verify this sign-in. Check session again.'
+        : !post.ok && uncertain ? operation === 'signup'
+          ? "We couldn't confirm sign-up. Check session again."
+          : "We couldn't confirm sign-in. Check session again."
+          : !post.ok && invalidSignin ? 'Invalid email or password.'
+            : !post.ok ? post.error instanceof AuthApiError
+            ? post.error.apiError?.error.message ?? (operation === 'signup'
+              ? 'We could not complete sign-up.' : 'We could not complete sign-in.')
+            : operation === 'signup' ? 'We could not complete sign-up.' : 'We could not complete sign-in.' : undefined;
+    this.activeMutation = null;
     this.publish({ ...this.snapshot, status, user: verified ? observedUser : undefined,
       verifiedGeneration: verified ? active.generation : null,
       routeTrusted: verified || (status === 'unauthenticated' && observation === 'anonymous'),
