@@ -813,6 +813,12 @@ T101 assessment has executed and recorded the unavailable actual-speech evidence
   RED/behavior target: Failed initial bootstrap/navigation reads leave unknown with no message, while ProtectedRoute requires a message to expose Check session. Prove the missing action through the real controller and protected rendering before the smallest safe correction.
   Execution refinement: Recorded before coding as a separate two-file task (at most 100 added production lines); adjacent outage recovery improvement, not a claim that the existing post-mutation FR-023 path was broken.
 
+- [x] T135 Validate the IPv6 unique-local bind range by numeric address bits in `apps/api/src/config.ts` and `apps/api/test/config.test.ts`.
+  After: T115 root/reviewer source finding (before final audit closure). Check: **K135**. Coverage: FR-016, V17.
+  Expected: Preserve loopback and actual fc00::/7 unique-local addresses; reject abbreviated non-ULA first hextets such as fc::1 and fd1::1. No public/reserved address becomes private through textual prefix matching.
+  RED/behavior target: Pinned-Node parseConfig currently accepts fc::1 and fd1::1 because normalized text starts with fc/fd; prove rejection regression before a minimal numeric first-hextet range check. Retain all existing IPv4/proxy semantics.
+  Execution refinement: Recorded before coding as a separate two-file task, at most 100 added production lines. Refresh final-source evidence after this configuration correction.
+
 - [ ] T113 Run fresh lint/typecheck/production-build and built same-origin API/static smoke in `docs/evidence/build.md`.
   After: T112. Check: **K113**. Coverage: FR-016, FR-030, FR-031, FR-033, V11, V17, V20.
   Expected: Commands exit0; static SPA fallback works; /api unknown404 remains JSON; startup/secrets/native flags remain correct.
@@ -967,6 +973,7 @@ Run from repository root under the selected runtime. K-number matches T-number. 
 | K112 | `npm ci && npm run db:up && npm run verify` |
 | K133 | `npm run build:test:api -- apps/api/test/security.integration.test.ts && node --test apps/api/dist-test/targets/security.integration.test/test/security.integration.test.js` |
 | K134 | `npm run test:unit --workspace @easygen/web -- test/route-trust.test.tsx` |
+| K135 | `npm run build:test:api -- apps/api/test/config.test.ts && node --test apps/api/dist-test/targets/config.test/test/config.test.js` |
 | K113 | `npm run lint && npm run typecheck && npm run build` |
 | K114 | `npm run test:e2e` |
 | K115 | `npm run verify` |
@@ -1137,7 +1144,7 @@ No Redis, Web Locks/BroadcastChannel ordering, idempotency platform, distributed
 
 ## Generated summary
 
-**Generated baseline**: 116 tasks; execution refinements T117–T134 bring the current total to134. Baseline parallel marking:43 tasks in15 bounded cohorts. Supplemental splits/dependencies are recorded beside each added task.
+**Generated baseline**: 116 tasks; execution refinements T117–T135 bring the current total to135. Baseline parallel marking:43 tasks in15 bounded cohorts. Supplemental splits/dependencies are recorded beside each added task.
 
 | Group | Tasks |
 | --- | --- |

@@ -124,12 +124,15 @@ void test("config: accepts only valid numeric ports and private bind addresses",
     parseConfig(developmentEnv({ HOST: "0:0:0:0:0:0:0:1" })).host,
     "0:0:0:0:0:0:0:1"
   );
+  for (const host of ["fc00::1", "fcff:ffff::1", "fd00::1", "fdff:ffff::1"]) {
+    assert.equal(parseConfig(developmentEnv({ HOST: host })).host, host);
+  }
 
   for (const port of ["0", "65536", "3000x", "-1", "1.5"]) {
     assert.throws(() => parseConfig(developmentEnv({ PORT: port })), port);
   }
 
-  for (const host of ["0.0.0.0", "::", "8.8.8.8", "api.example.com"]) {
+  for (const host of ["0.0.0.0", "::", "fc::1", "fd1::1", "fbff::1", "fe00::1", "8.8.8.8", "api.example.com"]) {
     assert.throws(() => parseConfig(developmentEnv({ HOST: host })), host);
   }
 });

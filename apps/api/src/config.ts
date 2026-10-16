@@ -130,7 +130,9 @@ function isPrivateBindAddress(host: string): boolean {
       return false;
     }
 
-    return normalizedHost === "::1" || normalizedHost.startsWith("fc") || normalizedHost.startsWith("fd");
+    const firstHextet = Number.parseInt(normalizedHost.split(":")[0] ?? "", 16);
+
+    return normalizedHost === "::1" || (firstHextet >= 0xfc00 && firstHextet <= 0xfdff);
   }
 
   return false;
