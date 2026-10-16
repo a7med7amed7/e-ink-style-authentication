@@ -807,7 +807,7 @@ T101 assessment has executed and recorded the unavailable actual-speech evidence
   RED/behavior target: Root final audit found policy lookup prefers raw originalUrl with case-sensitive keys while Express routes are case-insensitive. Prove with real HTTP boundary requests before the smallest canonical matched-route fix; no limit increases or test bypasses.
   Execution refinement: Recorded before coding as an isolated final-audit security correction; verify focused regression and the full affected suites before committing.
 
-- [ ] T134 Offer explicit protected-page recovery after a settled bootstrap/navigation identity failure in `apps/web/src/auth/auth-controller.ts` and `apps/web/test/route-trust.test.tsx`.
+- [x] T134 Offer explicit protected-page recovery after a settled bootstrap/navigation identity failure in `apps/web/src/auth/auth-controller.ts` and `apps/web/test/route-trust.test.tsx`.
   After: T115 root source finding (before final audit closure). Check: **K134**. Coverage: FR-019, FR-025, FR-029, V14.
   Expected: A current failed ordinary identity check keeps protected content hidden and exposes safe session-recheck feedback/action; retry may verify identity or anonymity. Preserve existing operation feedback, uncertainty, generation/read guards, and mutation serialization; no automatic POST retry.
   RED/behavior target: Failed initial bootstrap/navigation reads leave unknown with no message, while ProtectedRoute requires a message to expose Check session. Prove the missing action through the real controller and protected rendering before the smallest safe correction.
@@ -1137,7 +1137,7 @@ No Redis, Web Locks/BroadcastChannel ordering, idempotency platform, distributed
 
 ## Generated summary
 
-**Generated baseline**: 116 tasks; execution refinements T117–T132 bring the current total to132. Baseline parallel marking:43 tasks in15 bounded cohorts. Supplemental splits/dependencies are recorded beside each added task.
+**Generated baseline**: 116 tasks; execution refinements T117–T134 bring the current total to134. Baseline parallel marking:43 tasks in15 bounded cohorts. Supplemental splits/dependencies are recorded beside each added task.
 
 | Group | Tasks |
 | --- | --- |

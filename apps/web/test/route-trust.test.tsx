@@ -1,9 +1,10 @@
 import { StrictMode } from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes, type RouteObject } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PublicUser, SignupInput } from '@easygen/auth-contract';
-import type { AuthApi } from '../src/api/auth-api.js';
+import { AuthApiError, type AuthApi } from '../src/api/auth-api.js';
 import { AuthController } from '../src/auth/auth-controller.js';
 import { AuthProvider } from '../src/auth/auth-context.js';
 import { ProtectedRoute } from '../src/auth/protected-route.js';
@@ -32,6 +33,7 @@ function ProtectedApp({ controller }: { controller: AuthController }): React.JSX
     <MemoryRouter initialEntries={['/app']}>
       <Routes>
         <Route path="/app" element={<ProtectedRoute><ProtectedProbe /></ProtectedRoute>} />
+        <Route path="/signin" element={<p>Sign in destination</p>} />
       </Routes>
     </MemoryRouter>
   </AuthProvider>;
@@ -154,5 +156,91 @@ describe('route-trust:', () => {
     expect(signup).not.toHaveBeenCalled();
     expect(signin).not.toHaveBeenCalled();
     expect(logout).not.toHaveBeenCalled();
+  });
+
+  it('offers a session recheck after a failed bootstrap and renders recovered identity', async () => {
+    const userAction = userEvent.setup();
+    const { api, me, signup, signin, logout } = apiWith({
+      me: vi.fn<AuthApi['me']>()
+        .mockRejectedValueOnce(new AuthApiError('http', 'Service unavailable.', { status: 503 }))
+        .mockResolvedValue(user)
+    });
+    const controller = new AuthController(api);
+    render(<ProtectedApp controller={controller} />);
+
+    const retry = await screen.findByRole('button', { name: 'Check session' });
+    expect(screen.getByRole('alert').textContent).toMatch(/couldn't verify your session/i);
+    expect(screen.queryByText('Private account data')).toBeNull();
+
+    await userAction.click(retry);
+    expect(await screen.findByText('Private account data')).toBeTruthy();
+    expect(me).toHaveBeenCalledTimes(2);
+    expect(signup).not.toHaveBeenCalled();
+    expect(signin).not.toHaveBeenCalled();
+    expect(logout).not.toHaveBeenCalled();
+  });
+
+  it('lets a session recheck after bootstrap failure confirm anonymity', async () => {
+    const userAction = userEvent.setup();
+    const { api, me } = apiWith({
+      me: vi.fn<AuthApi['me']>()
+        .mockRejectedValueOnce(new AuthApiError('network', 'The read failed.'))
+        .mockRejectedValueOnce(new AuthApiError('unauthenticated', 'Session absent.', { status: 401 }))
+    });
+    render(<ProtectedApp controller={new AuthController(api)} />);
+
+    await userAction.click(await screen.findByRole('button', { name: 'Check session' }));
+    expect(await screen.findByText('Sign in destination')).toBeTruthy();
+    expect(screen.queryByText('Private account data')).toBeNull();
+    expect(me).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a stale failed bootstrap read after a newer identity check succeeds', async () => {
+    const staleRead = deferred<PublicUser>();
+    const currentRead = deferred<PublicUser>();
+    const { api, me } = apiWith({
+      me: vi.fn<AuthApi['me']>()
+        .mockReturnValueOnce(staleRead.promise)
+        .mockReturnValueOnce(currentRead.promise)
+    });
+    render(<ProtectedApp controller={new AuthController(api)} />);
+    await waitFor(() => { expect(me).toHaveBeenCalledTimes(1); });
+
+    act(() => { window.dispatchEvent(new Event('focus')); });
+    await waitFor(() => { expect(me).toHaveBeenCalledTimes(2); });
+    await act(async () => {
+      currentRead.resolve(user);
+      await currentRead.promise;
+    });
+    expect(await screen.findByText('Private account data')).toBeTruthy();
+
+    await act(async () => {
+      staleRead.reject(new AuthApiError('http', 'Stale service failure.', { status: 503 }));
+      await staleRead.promise.catch(() => undefined);
+    });
+    expect(screen.getByText('Private account data')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Check session' })).toBeNull();
+  });
+
+  it('preserves uncertain operation feedback when a later session check also fails', async () => {
+    const { api, me, signup } = apiWith({
+      signup: vi.fn<AuthApi['signup']>().mockRejectedValue(new AuthApiError('network', 'Request failed.')),
+      me: vi.fn<AuthApi['me']>().mockRejectedValue(new AuthApiError('network', 'Session check failed.'))
+    });
+    const controller = new AuthController(api);
+    const input: SignupInput = { name: user.name, email: user.email, password: 'correct-horse-42!' };
+
+    await expect(controller.signup(input)).resolves.toMatchObject({ outcome: 'uncertain' });
+    const operationMessage = controller.getSnapshot().message;
+    expect(operationMessage).toBe("We couldn't confirm sign-up. Check session again.");
+
+    await controller.revalidate('retry');
+
+    expect(controller.getSnapshot()).toMatchObject({
+      status: 'unknown', routeTrusted: false, serverOutcomeUncertain: true,
+      lastOperationOutcome: 'uncertain', message: operationMessage
+    });
+    expect(signup).toHaveBeenCalledTimes(1);
+    expect(me).toHaveBeenCalledTimes(2);
   });
 });

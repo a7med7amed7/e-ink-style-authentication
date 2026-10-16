@@ -102,8 +102,11 @@ export class AuthController {
         this.publish({ ...this.snapshot, status: 'unauthenticated', user: undefined,
           verifiedGeneration: null, routeTrusted: true, serverObservation: 'anonymous' });
       } else {
+        const message = this.snapshot.message ?? (this.snapshot.serverOutcomeUncertain
+          ? "We couldn't confirm the earlier request. Check your session again."
+          : "We couldn't verify your session. Check your session again.");
         this.publish({ ...this.snapshot, status: 'unknown', user: undefined,
-          verifiedGeneration: null, routeTrusted: false, serverObservation: 'unknown' });
+          verifiedGeneration: null, routeTrusted: false, serverObservation: 'unknown', message });
       }
     }
   }
