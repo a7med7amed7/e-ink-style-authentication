@@ -3,7 +3,7 @@
 **Input**: `specs/001-user-auth/` — [plan](plan.md), [specification](spec.md), [binding contract](implementation-contract.md), [research](research.md), [data model](data-model.md), [interface contracts](contracts/http-api.md), [verification map](verification.md), [quickstart](quickstart.md).
 **Created**: 2026-10-15 | **Branch**: `master` (unchanged)
 **Status**: Phases 1–8 implementation and source review are complete. Phase 9 source audit and executable gates T113–T115 passed at final code commit e842bb5: 294 tests, zero failures/skips, lint/typecheck/build, current non-root Docker image/native/HTTP smoke on Linux/amd64. T101 actual screen-reader field/error speech and T116 public GitHub publication remain unchecked. Other OS/architectures, production deployment and target hardware remain unverified. See `docs/evidence/final-review.md` and `docs/evidence/final-verification.md`.
-**Local Docker follow-up**: T136 implemented and verified with focused no-env/key persistence/override checks and isolated HTTP startup; the existing host private-bridge firewall limitation remains documented.
+**Local Docker follow-up**: T136 automatic keys and T137 default startup are verified. The exact Compose command, actual localhost authentication, repeated launch, Mongo restart/session persistence, and volume preservation passed without host firewall changes. See `docs/evidence/local-docker-startup-fix.md`.
 **Tests**: Mandatory under C08/C10 and FR-031. Behavioral tests precede implementation; integration regressions that already pass are recorded honestly rather than forced to fail.
 **Organization**: Shared setup/foundation, then US1–US6 in specification priority order, then final delivery gates. No constitution or extensions.yml hooks are present.
 
@@ -847,6 +847,14 @@ T101 assessment has executed and recorded the unavailable actual-speech evidence
   Validation: Resolve Compose with no env file, inspect required service dependencies/mount permissions, execute secret initialization twice to prove canonical length/reuse and file owner/mode without printing its value, and exercise the local image startup path. Record any existing host firewall limitation honestly; clean only task-owned QA resources.
   Scope: At most two owned source/config/docs files and 100 added production lines; production API and Dockerfile behavior are outside this local convenience change.
 
+## Follow-up: fix the failing local launch
+
+- [x] T137 Fix the actual one-command startup failure in `compose.app.yaml` and update `README.md`.
+  After: T136 user's failing launch and logs. Check: **K137**. Coverage: FR-016, FR-030, V11, V17, V20.
+  Root cause: The default private-bridge app-to-Mongo TCP path fails with EHOSTUNREACH on the user's unchanged host firewall; the previous successful QA adapter did not validate the recommended command.
+  Expected: Separate app and Mongo containers share only a local network namespace for this development workflow. Mongo listens on namespace loopback, app uses localhost Mongo and its private interface for published HTTP, and only host loopback port3000 is published. Automatic persistent secret, non-root app, data volumes and health ordering remain intact. No host firewall change, production API/Dockerfile change, or host networking in the shipped default.
+  Validation: Recreate only app-stack containers/network if needed, WITHOUT deleting the existing Mongo/session-secret volumes. Run the exact user command `docker compose -f compose.app.yaml up --build --wait`; require healthy app/Mongo and actual localhost3000 SPA/signup/me/logout checks. Repeat the exact command and restart Mongo through Compose to check shared-namespace lifecycle. Leave the working user stack running; preserve the unrelated baseline Mongo. At most two owned source/docs files and100 added production lines.
+
 ## Exact validation commands
 
 Run from repository root under the selected runtime. K-number matches T-number. Setup/document checks are reversible checks; no artificial unit tests are added for them.
@@ -987,6 +995,7 @@ Run from repository root under the selected runtime. K-number matches T-number. 
 | K114 | `npm run test:e2e` |
 | K115 | `npm run verify` |
 | K116 | `git remote -v && gh auth status` |
+| K137 | `docker compose -f compose.app.yaml up --build --wait` plus localhost3000 auth and restart checks recorded in local launch fix evidence |
 | K136 | `docker compose --env-file /dev/null -f compose.app.yaml config --quiet` plus isolated init/restart/startup probes recorded in local Docker evidence |
 
 ## Dependencies & Execution Order
@@ -1154,7 +1163,7 @@ No Redis, Web Locks/BroadcastChannel ordering, idempotency platform, distributed
 
 ## Generated summary
 
-**Generated baseline**: 116 tasks; execution refinements T117–T136 bring the current total to136. Baseline parallel marking:43 tasks in15 bounded cohorts. Supplemental splits/dependencies are recorded beside each added task.
+**Generated baseline**: 116 tasks; execution refinements T117–T137 bring the current total to137. Baseline parallel marking:43 tasks in15 bounded cohorts. Supplemental splits/dependencies are recorded beside each added task.
 
 | Group | Tasks |
 | --- | --- |

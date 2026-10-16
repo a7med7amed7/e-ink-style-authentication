@@ -1,6 +1,6 @@
 # Easygen authentication assessment
 
-This repository contains a same-origin React and NestJS authentication app backed by MongoDB. The development workflows below are reproducible with the pinned toolchain. The Docker image, HTTP health check, and authenticated private-network smoke passed in the Phase 8 Linux/amd64 QA proof on 2026-10-16 with a temporary, narrowly scoped host firewalld allow rule. The unmodified host policy rejected the app-to-Mongo bridge flow; see the Compose note below for the tested scope and limits.
+This repository contains a same-origin React and NestJS authentication app backed by MongoDB. The development workflows below are reproducible with the pinned toolchain. The default Docker workflow keeps the app and MongoDB in separate containers but shares MongoDB's network namespace: MongoDB listens on namespace loopback and the app binds its private interface. Only host loopback port 3000 is published. This avoids the app-to-Mongo bridge path that the original host firewalld policy rejected, without changing host firewall rules. The earlier separate-bridge proof is retained below as historical evidence.
 
 ## Quick Docker launch
 
@@ -10,7 +10,7 @@ docker compose -f compose.app.yaml up --build --wait
 
 Then open <http://localhost:3000>. This local path creates its session key automatically; no `.env`, host Node, or manually generated secret is needed.
 
-On the verified Linux host, its original firewalld policy rejects app-to-Mongo bridge traffic, so this command does not become healthy there until that host-specific forwarding policy permits the private flow. The T136 no-firewall run confirmed this host limitation; Compose does not change host firewall rules.
+If upgrading from the earlier separate-bridge Compose layout, run `docker compose -f compose.app.yaml down` once before starting the updated file. This releases the old container address without deleting either the MongoDB data volume or the generated-key volume. Then use the command above. Do not use `down -v` unless you intend to delete local accounts, sessions, and the generated key.
 
 ## Prerequisites
 
@@ -55,7 +55,7 @@ The example `.env` sets `NODE_ENV=development`, `APP_ORIGIN=http://localhost:517
 
 ## Run the app image with Compose
 
-`compose.app.yaml` builds a non-root image with production-only runtime dependencies and runs the UI/API beside a private MongoDB service. It sets `APP_ORIGIN=http://localhost:3000` and `MONGODB_URI=mongodb://mongo:27017/easygen`, and publishes only `127.0.0.1:3000`; the browser origin is `http://localhost:3000`. The Compose app uses the local-development cookie policy and HTTP because it is a local assessment workflow, not a production TLS topology.
+`compose.app.yaml` builds a non-root image with production-only runtime dependencies and runs the UI/API and MongoDB in separate containers. The app shares MongoDB's network namespace, connects to `mongodb://127.0.0.1:27017/easygen`, and binds the private interface at `DOCKER_APP_HOST` (default `172.30.0.3`). MongoDB listens only on namespace loopback. Compose publishes the app's port only at `127.0.0.1:3000`; the browser origin is `http://localhost:3000`. The Compose app uses the local-development cookie policy and HTTP because it is a local assessment workflow, not a production TLS topology.
 
 Start the Docker-only path with no `.env`, host Node, or manual session key:
 
@@ -64,11 +64,11 @@ docker compose -f compose.app.yaml up --build --wait
 docker compose -f compose.app.yaml ps
 ```
 
-The first start runs a digest-pinned Node initializer that creates a cryptographically random session key in the Compose `session-secret` volume. The file is owned by UID 1000, mode `0400`, and mounted read-only into the app. It is reused across restarts and is never printed. An explicit non-empty `SESSION_SECRET` in the environment or `.env` overrides the generated key; an empty value falls back to the stored key. Compose defaults to private app address `172.30.0.3` on `172.30.0.0/24`; if that range conflicts with a host route or another Docker network, set `DOCKER_APP_HOST` and `DOCKER_APP_SUBNET` in `.env` to a free private address and subnet. The MongoDB service remains private, and only the app is published on loopback at port 3000.
+The first start runs a digest-pinned Node initializer that creates a cryptographically random session key in the Compose `session-secret` volume. The file is owned by UID 1000, mode `0400`, and mounted read-only into the app. It is reused across restarts and is never printed. An explicit non-empty `SESSION_SECRET` in the environment or `.env` overrides the generated key; an empty value falls back to the stored key. Compose defaults to private app address `172.30.0.3` on `172.30.0.0/24`; if that range conflicts with a host route or another Docker network, set `DOCKER_APP_HOST` and `DOCKER_APP_SUBNET` in `.env` to a free private address and subnet. MongoDB has no host-published database port.
 
-Compose defines a MongoDB ping health check and an app health check that requires HTTP 200 from `/`. In the dated Phase 8 QA proof on 2026-10-16, the app became healthy; direct and published app URLs returned HTTP 200; signup returned 201; and cookie-authenticated `/api/auth/me` returned 200. The app ran as `node` under Node 24.22.0. These checks used the private bridge path from app address `172.30.0.3` to MongoDB `172.30.0.2:27017` with the temporary rule described below. The later T136 launch without any firewall change ran secret initialization and Mongo health successfully, but the app exited with `EHOSTUNREACH 172.30.0.2:27017` under the original host policy; it does not supersede that earlier proof.
+The dated Phase 8 QA proof on 2026-10-16 used the earlier private-bridge layout and a temporary, narrowly scoped host firewalld rule. With that rule, the app became healthy; direct and published URLs returned HTTP 200; signup returned 201; and cookie-authenticated `/api/auth/me` returned 200. The later T136 default launch without a firewall change reproduced `EHOSTUNREACH 172.30.0.2:27017` on that old app-to-Mongo bridge path. These are historical results for the superseded network layout.
 
-The host's original firewalld policy has a nested `FORWARD` catch-all reject that blocks this new bridge connection. For this QA run only, a narrowly scoped `NEW` TCP/27017 allow for that exact app-to-Mongo bridge flow was inserted before the rejecting policy. Its counter recorded 4 packets / 240 bytes. The temporary rule was removed after the smoke, and the app stack, probe, and diagnostic resources were cleaned up; the separate baseline Mongo service and volume were preserved. This proves the app path after the scoped allowance, not that the original host firewall permits it by default. Other hosts may require their own network-policy adjustment, and Docker behavior has only been verified on Linux/amd64.
+T137 replaces that bridge egress with MongoDB loopback inside the shared namespace. On 2026-10-16, the exact default Compose command completed successfully on repeated runs on Linux/amd64 without any firewall change. SPA and `/signin` returned HTTP 200, signup returned 201, authenticated `/api/auth/me` returned 200, logout returned 204, and the logged-out `/api/auth/me` returned 401. A Compose-managed Mongo restart restarted the dependent app; both became healthy again, and the existing session remained valid until logout. The temporary Phase 8 rule was removed, and its diagnostic containers/resources were cleaned; the baseline Mongo service and volume remained unchanged. This verifies the local Docker flow on the tested host, not a production deployment or other hosts/architectures.
 
 Stop the stack and preserve the database and session key with:
 

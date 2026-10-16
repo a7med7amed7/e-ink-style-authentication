@@ -29,6 +29,11 @@ The smoke container `1c01887e54fdcbc7e4a9d079179c20e50b0cdd94af63d56c72e9d4d2bce
 These runs verify the committed Linux/amd64 source and local Docker/Mongo conditions. T101 actual Orca field/error speech and T116 public source publication remain open. Deployment-target performance, production HTTPS/proxy deployment, and non-Linux/amd64 operation remain unverified.
 
 
-## Subsequent local Docker convenience
+## Historical T136 local Docker convenience
 
 T136 adds the documented one-command launch with an automatically generated persistent local session key and optional network defaults. Root reviewed the Compose/documentation change; application sources, dependencies and production Dockerfile are unchanged. [Focused Docker evidence](local-docker-launcher.md) records configuration, key reuse/permissions/override tests, isolated HTTP startup and cleanup. The normal bridge launch still encounters this host's existing firewall restriction. The earlier 294-test result remains tied to its recorded application revision; it is not a new test run for this launcher change. T101/T116 and other platform/deployment limits remain unchanged.
+
+
+## Verified default Docker startup (T137)
+
+The previous T136 bridge limitation is resolved in the local default by sharing Mongo's network namespace while retaining separate containers. The app connects to namespace loopback; only host loopback HTTP port 3000 is published. The exact documented Compose command exited 0 repeatedly on the user's default project without any host firewall change. Actual signup, authenticated identity, logout, Mongo/app restart with session persistence, and original-volume/key preservation passed. Root independently inspected the live healthy containers and HTTP status. The app stack remains running; disposable test accounts were removed. See [T137 evidence](local-docker-startup-fix.md) and [independent review](local-docker-startup-fix-review.md). Production runtime code and Dockerfile are unchanged; the earlier 294-test application result is not a new suite run for this Compose change. Existing external delivery and untested-platform limits remain explicit.

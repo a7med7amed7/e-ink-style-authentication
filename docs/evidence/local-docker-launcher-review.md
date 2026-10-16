@@ -1,5 +1,8 @@
 # T136 local Docker launcher review
 
+**Historical T136 evidence:** the bridge-startup limitation below is superseded by the [T137 default startup fix](local-docker-startup-fix.md). The current command has been verified on this host without firewall changes.
+
+
 ## Verdict
 
 Approved with the documented host-network limitation. Read-only review found no blocking source or documentation issue in `compose.app.yaml` or `README.md`.

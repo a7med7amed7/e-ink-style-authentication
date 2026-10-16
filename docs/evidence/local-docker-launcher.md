@@ -1,5 +1,8 @@
 # T136 local Docker launcher
 
+**Historical T136 evidence:** the bridge-startup limitation below is superseded by the [T137 default startup fix](local-docker-startup-fix.md). The current command has been verified on this host without firewall changes.
+
+
 Observed on 2026-10-16 with Docker Compose 2.29.2, Docker Engine 29.8.0, and Linux/amd64. This report covers only `compose.app.yaml` and the Docker guidance in `README.md`; the Dockerfile, API secret validation, deployment contract, and baseline `compose.yaml` were left unchanged. No `.env` was present, no secret value was printed, and no host firewall rule was added or changed.
 
 ## Configuration and secret initialization
