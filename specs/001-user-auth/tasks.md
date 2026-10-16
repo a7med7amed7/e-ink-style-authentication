@@ -855,6 +855,27 @@ T101 assessment has executed and recorded the unavailable actual-speech evidence
   Expected: Separate app and Mongo containers share only a local network namespace for this development workflow. Mongo listens on namespace loopback, app uses localhost Mongo and its private interface for published HTTP, and only host loopback port3000 is published. Automatic persistent secret, non-root app, data volumes and health ordering remain intact. No host firewall change, production API/Dockerfile change, or host networking in the shipped default.
   Validation: Recreate only app-stack containers/network if needed, WITHOUT deleting the existing Mongo/session-secret volumes. Run the exact user command `docker compose -f compose.app.yaml up --build --wait`; require healthy app/Mongo and actual localhost3000 SPA/signup/me/logout checks. Repeat the exact command and restart Mongo through Compose to check shared-namespace lifecycle. Leave the working user stack running; preserve the unrelated baseline Mongo. At most two owned source/docs files and100 added production lines.
 
+## Follow-up: compact password control and field-only validation
+
+- [x] T138 Specify the requested form presentation with regressions in `apps/web/test/forms.test.tsx` and `tests/e2e/accessibility.spec.ts`.
+  After: T137; user explicitly requests an inline password icon and one bullet list per field. Check: **K138**. Coverage: FR-027, FR-028, V18.
+  Expected: Password visibility uses an icon-only accessible button inside the trailing edge of the password input; keyboard focus and accessible Show/Hide names persist. Each field has exactly one associated list below it, with one list item per validation message. No top form summary or duplicated generic validation error when field errors exist. Non-field submission failures remain visible once at form bottom. Update earlier summary-based assertions to the new user-authorized presentation; preserve announcement associations, invalid focus, uncertain outcome feedback and responsive/contrast checks.
+  RED: Prove old textual external toggle, combined per-field messages and duplicated top summary fail the new assertions before source edits. Browser checks include320px geometry, icon touch target/focus/contrast, message uniqueness and list association.
+
+- [x] T139 Implement the requested field presentation in `apps/web/src/components/auth-fields.tsx` and `apps/web/src/styles.css`.
+  After: T138 RED. Check: **K139**. Coverage: FR-027, FR-028, V18.
+  Expected: Dependency-free inline eye/eye-off SVG, accessible button name/state and44px target at input end, sufficient input padding. Field error arrays render separate bullet items in one associated live region/list per field, with no top summary; suppress duplicate form-level validation when field errors exist. Preserve first-invalid focus, actual non-field submission errors, controllers/API and all authentication semantics. At most100 added production lines across the two files.
+  Validation: Focused forms and full web unit suite, lint/typecheck/build, three-engine accessibility/browser checks at narrow/desktop widths. Rebuild the actual local Docker app and verify the new UI on localhost3000 while preserving user data/key volumes.
+
+- [x] T140 Keep validation-summary suppression at the page boundary in `apps/web/src/pages/signup.tsx` and `apps/web/src/pages/signin.tsx`.
+  After: T138/T139 integration review. Check: **K140**. Coverage: FR-027, FR-029, V18.
+  Expected: When field errors are present, pages pass no generic validation summary into AuthFields and tell AuthStatus field feedback already owns the notice. Keep the shared AuthFields able to display an explicitly supplied distinct non-field submission failure once; never classify messages by matching English text. Preserve all authentication/uncertainty state and field errors. At most two files and100 added production lines (expected four small page-line changes).
+  Existing RED: T138 server-field duplicate test fails if pages forward generic validation and component preserves independent submission errors; legacy AuthFields regression requires distinct account-confirmation failure remain visible.
+
+- [x] T141 Update the old single-paragraph error-association assertion for list markup in `apps/web/test/auth-fields.test.tsx`.
+  After: T138. Check: **K141**. Coverage: FR-027, V18.
+  Expected: Assert aria-describedby points to the field's single UL containing its LI message, rather than expecting the text element itself to be the description container. Retain the distinct non-field account-confirmation alert and keyboard/autocomplete assertions; do not remove a meaningful failure-feedback check to make tests green.
+
 ## Exact validation commands
 
 Run from repository root under the selected runtime. K-number matches T-number. Setup/document checks are reversible checks; no artificial unit tests are added for them.
@@ -995,6 +1016,10 @@ Run from repository root under the selected runtime. K-number matches T-number. 
 | K114 | `npm run test:e2e` |
 | K115 | `npm run verify` |
 | K116 | `git remote -v && gh auth status` |
+| K140 | `npm run test:unit --workspace @easygen/web -- test/forms.test.tsx` |
+| K141 | `npm run test:unit --workspace @easygen/web -- test/auth-fields.test.tsx` |
+| K138 | `npm run test:unit --workspace @easygen/web -- test/forms.test.tsx` (new presentation assertions RED, then GREEN) |
+| K139 | `npm run test:unit --workspace @easygen/web && npm run lint && npm run typecheck && npm run build` plus pinned three-engine accessibility suite and actual Docker UI check |
 | K137 | `docker compose -f compose.app.yaml up --build --wait` plus localhost3000 auth and restart checks recorded in local launch fix evidence |
 | K136 | `docker compose --env-file /dev/null -f compose.app.yaml config --quiet` plus isolated init/restart/startup probes recorded in local Docker evidence |
 
@@ -1163,7 +1188,7 @@ No Redis, Web Locks/BroadcastChannel ordering, idempotency platform, distributed
 
 ## Generated summary
 
-**Generated baseline**: 116 tasks; execution refinements T117–T137 bring the current total to137. Baseline parallel marking:43 tasks in15 bounded cohorts. Supplemental splits/dependencies are recorded beside each added task.
+**Generated baseline**: 116 tasks; execution refinements T117–T141 bring the current total to141. Baseline parallel marking:43 tasks in15 bounded cohorts. Supplemental splits/dependencies are recorded beside each added task.
 
 | Group | Tasks |
 | --- | --- |

@@ -30,7 +30,7 @@ export function SignupPage(): React.JSX.Element {
         : message;
   const hasFieldErrors = Object.values(errors).some((fieldErrors) =>
     fieldErrors !== undefined && fieldErrors.length > 0);
-  const submissionMessage = hasFieldErrors ? message : recoveryMessage;
+  const submissionMessage = hasFieldErrors ? undefined : recoveryMessage;
 
   const change = (field: AuthFieldName, value: string): void => {
     setValues((previous) => ({ ...previous, [field]: value }));
@@ -112,7 +112,7 @@ export function SignupPage(): React.JSX.Element {
       </button>
     </form>
     <AuthStatus snapshot={snapshot} onCheckSession={() => controller.revalidate('retry')}
-      submissionMessageVisible={submissionMessage !== undefined} />
+      submissionMessageVisible={submissionMessage !== undefined || hasFieldErrors} />
     {verifiedSignupRecovery ? <p role="status">Session verified.</p> : null}
     {verifiedUncertainSignup || verifiedSignupRecovery
       ? <p><Link to="/app">Continue to the application</Link></p> : null}

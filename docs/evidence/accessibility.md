@@ -1,5 +1,7 @@
 # Authentication form accessibility evidence
 
+**Historical checkpoint:** the screenshots and summary-based assertions below predate T138–T141. The current UI uses an inline eye icon and separate bullet messages below each field, with no validation summary. Current three-engine results and live Docker review are in [inline field evidence](inline-fields.md). Actual screen-reader speech remains unverified.
+
 Verified 2026-10-16 with Node `v24.22.0`, npm `11.19.1`, and the digest-pinned Playwright image `mcr.microsoft.com/playwright@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf` (`linux/amd64`). Browser versions are Chromium `156.0.8078.4`, Firefox `157.0`, and WebKit `27.2`. The build and browser runs used the project's healthy MongoDB service; auth identity checks were intercepted with deterministic anonymous/success responses where indicated by the tests.
 
 ## Results

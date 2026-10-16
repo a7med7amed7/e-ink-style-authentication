@@ -328,6 +328,52 @@ class LogoutFormsController {
   }
 }
 
+function fieldErrorList(input: HTMLInputElement, expectedMessages: readonly RegExp[]): HTMLUListElement {
+  expect(input.getAttribute("aria-invalid")).toBe("true");
+  const describedBy = (input.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
+  const lists = describedBy.map((id) => document.getElementById(id))
+    .filter((element): element is HTMLUListElement => element?.tagName === "UL");
+  expect(lists).toHaveLength(1);
+  const list = lists[0] as HTMLUListElement;
+  const label = Array.from(document.querySelectorAll("label")).find((candidate) => candidate.htmlFor === input.id);
+  expect(label).toBeTruthy();
+  const field = label?.parentElement;
+  expect(field?.contains(list)).toBe(true);
+  expect(field?.querySelectorAll("ul")).toHaveLength(1);
+  expect(input.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  expect(list.closest('[aria-live], [role="alert"]')).not.toBeNull();
+  const items = Array.from(list.querySelectorAll(":scope > li"));
+  expect(items).toHaveLength(expectedMessages.length);
+  expectedMessages.forEach((message, index) => {
+    expect(items[index]?.textContent).toMatch(message);
+  });
+  return list;
+}
+
+function expectNoFieldSummary(form: HTMLFormElement | null): void {
+  expect(form).not.toBeNull();
+  expect(form?.querySelector("fieldset > [role=\"alert\"]")).toBeNull();
+  expect(form?.textContent).not.toMatch(/check these fields/i);
+}
+
+async function renderSigninWithServerFieldErrors(): Promise<void> {
+  const user = userEvent.setup();
+  const controller = new SigninFormsController();
+  await renderApplication(controller, "/signin");
+  await user.type(await screen.findByRole("textbox", { name: "Email" }), "ada@example.test");
+  await user.type(screen.getByLabelText<HTMLInputElement>("Password"), "Valid123!");
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  await act(async () => {
+    controller.completeSigninAfterUpdate({
+      status: "unauthenticated", generation: 1, verifiedGeneration: null, latestReadId: 1,
+      routeTrusted: true, pendingOperation: null, serverObservation: "anonymous", serverOutcomeUncertain: false,
+      submissionErrors: { email: ["Email is not accepted."], password: ["Password rule one.", "Password rule two."] },
+      message: "Validation failed.", lastOperationOutcome: "rejected",
+    }, { outcome: "rejected", message: "Validation failed." });
+    await Promise.resolve();
+  });
+}
+
 function renderRoutes(controller: FormsController, initialEntry: string) {
   return render(
     <AuthProvider controller={controller as never}>
@@ -368,6 +414,45 @@ async function renderApplication(controller: SigninFormsController, initialEntry
 afterEach(() => { cleanup(); });
 
 describe("signup-form:", () => {
+  it("uses an icon-only inline password toggle with an accessible state", () => {
+    const controller = new FormsController();
+    renderRoutes(controller, "/signup");
+
+    const password = screen.getByLabelText<HTMLInputElement>("Password");
+    const toggle = screen.getByRole<HTMLButtonElement>("button", { name: "Show password" });
+    expect(toggle.textContent).toBe("");
+    expect(toggle.querySelector("svg")).not.toBeNull();
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    expect(password.parentElement?.contains(toggle)).toBe(true);
+  });
+
+  it("renders each password validation message in its associated list item", async () => {
+    const user = userEvent.setup();
+    const controller = new FormsController();
+    renderRoutes(controller, "/signup");
+    await user.type(screen.getByLabelText<HTMLInputElement>("Email"), "ada@example.test");
+    await user.type(screen.getByLabelText<HTMLInputElement>("Name"), "Ada Example");
+    await user.type(screen.getByLabelText<HTMLInputElement>("Password"), "short");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    const password = screen.getByLabelText<HTMLInputElement>("Password");
+    fieldErrorList(password, [
+      /8 to 128 Unicode code points/i,
+      /at least one Unicode decimal digit/i,
+      /at least one punctuation character or symbol/i,
+    ]);
+    expect(controller.signupInputs).toHaveLength(0);
+  });
+
+  it("does not add a form-level validation summary", async () => {
+    const user = userEvent.setup();
+    const controller = new FormsController();
+    renderRoutes(controller, "/signup");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    expectNoFieldSummary(screen.getByRole("button", { name: "Create account" }).closest("form"));
+  });
+
   it("uses semantic labeled fields and shared validation before dispatch", async () => {
     const user = userEvent.setup();
     const controller = new FormsController();
@@ -381,11 +466,8 @@ describe("signup-form:", () => {
     await user.type(password, "Abcdef1 ");
     await user.click(screen.getByRole("button", { name: /create account|sign up/i }));
 
-    expect(screen.getByRole("alert").textContent).toMatch(/punctuation character or symbol/i);
-    expect(password.getAttribute("aria-invalid")).toBe("true");
-    const descriptionId = password.getAttribute("aria-describedby");
-    expect(descriptionId).toBeTruthy();
-    expect(document.getElementById(descriptionId ?? "")?.textContent).toMatch(/punctuation character or symbol/i);
+    fieldErrorList(password, [/punctuation character or symbol/i]);
+    expectNoFieldSummary(screen.getByRole("button", { name: "Create account" }).closest("form"));
     expect(controller.signupInputs).toHaveLength(0);
   });
 
@@ -410,20 +492,25 @@ describe("signup-form:", () => {
     expect(document.activeElement).toBe(toggle);
     await user.keyboard("{Enter}");
     expect(password.type).toBe("text");
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
     expect(document.activeElement).toBe(toggle);
     await user.keyboard(" ");
     expect(password.type).toBe("password");
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
     expect(document.activeElement).toBe(toggle);
     await user.tab();
     expect(document.activeElement).toBe(submit);
     await user.keyboard("{Enter}");
 
-    const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toMatch(/email/i);
-    expect(email.getAttribute("aria-invalid")).toBe("true");
-    const descriptionId = email.getAttribute("aria-describedby");
-    expect(descriptionId).toBeTruthy();
-    expect(document.getElementById(descriptionId ?? "")?.textContent).toMatch(/email/i);
+    fieldErrorList(email, [/email/i]);
+    fieldErrorList(name, [/at least 3 Unicode code points/i]);
+    fieldErrorList(password, [
+      /8 to 128 Unicode code points/i,
+      /at least one Unicode letter/i,
+      /at least one Unicode decimal digit/i,
+      /at least one punctuation character or symbol/i,
+    ]);
+    expectNoFieldSummary(screen.getByRole("button", { name: /create account|sign up/i }).closest("form"));
     expect(document.activeElement).toBe(email);
     expect(controller.signupInputs).toHaveLength(0);
   });
@@ -557,9 +644,12 @@ describe("signup-form:", () => {
     await userEvents.clear(password);
     await userEvents.type(password, "short");
     await userEvents.click(screen.getByRole("button", { name: "Create account" }));
-    expect(screen.getByRole("alert").textContent).toMatch(/check these fields/i);
-    expect(screen.getByRole("alert").textContent).toMatch(/password/i);
-    expect(screen.getByRole("alert").textContent).not.toMatch(/account may have been created/i);
+    fieldErrorList(password, [
+      /8 to 128 Unicode code points/i,
+      /at least one Unicode decimal digit/i,
+      /at least one punctuation character or symbol/i,
+    ]);
+    expectNoFieldSummary(screen.getByRole("button", { name: /create account|sign up/i }).closest("form"));
     expect(screen.getByRole("status").textContent).toMatch(/may still complete/i);
   });
 
@@ -610,9 +700,8 @@ describe("signup-form:", () => {
     await userEvents.clear(email);
     await userEvents.type(email, "not-an-email");
     await userEvents.click(screen.getByRole("button", { name: "Create account" }));
-    expect(screen.getByRole("alert").textContent).toMatch(/check these fields/i);
-    expect(screen.getByRole("alert").textContent).toMatch(/email/i);
-    expect(screen.getByRole("alert").textContent).not.toMatch(/no session is currently observed/i);
+    fieldErrorList(email, [/valid email address/i]);
+    expectNoFieldSummary(screen.getByRole("button", { name: "Create account" }).closest("form"));
   });
 
   it("keeps protected welcome content hidden until the current generation is verified", () => {
@@ -665,20 +754,19 @@ describe("signin-form:", () => {
     expect(document.activeElement).toBe(toggle);
     await user.keyboard("{Enter}");
     expect(password.type).toBe("text");
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
     expect(document.activeElement).toBe(toggle);
     await user.keyboard(" ");
     expect(password.type).toBe("password");
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
     expect(document.activeElement).toBe(toggle);
     await user.tab();
     expect(document.activeElement).toBe(submit);
     await user.keyboard("{Enter}");
 
-    const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toMatch(/email/i);
-    expect(email.getAttribute("aria-invalid")).toBe("true");
-    const descriptionId = email.getAttribute("aria-describedby");
-    expect(descriptionId).toBeTruthy();
-    expect(document.getElementById(descriptionId ?? "")?.textContent).toMatch(/email/i);
+    fieldErrorList(email, [/email/i]);
+    fieldErrorList(password, [/password is required/i]);
+    expectNoFieldSummary(screen.getByRole("button", { name: "Sign in" }).closest("form"));
     expect(document.activeElement).toBe(email);
     expect(controller.signinInputs).toHaveLength(0);
   });
@@ -723,9 +811,28 @@ describe("signin-form:", () => {
 
     const feedback = await screen.findByRole("alert");
     expect(feedback.textContent).toBe("Invalid email or password.");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    const password = screen.getByLabelText<HTMLInputElement>("Password");
+    const submit = screen.getByRole("button", { name: "Sign in" });
+    expect(password.compareDocumentPosition(feedback) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(feedback.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
     expect(screen.queryByText("Welcome to the application.")).toBeNull();
     expect(controller.signinInputs).toEqual([{ email: "ada@example.test", password: "short" }]);
+  });
+
+  it("renders server field errors as separate list items per field", async () => {
+    await renderSigninWithServerFieldErrors();
+
+    fieldErrorList(screen.getByLabelText<HTMLInputElement>("Email"), [/Email is not accepted\./i]);
+    fieldErrorList(screen.getByLabelText<HTMLInputElement>("Password"), [/Password rule one\./i, /Password rule two\./i]);
+  });
+
+  it("hides the generic validation failure when server field errors are shown", async () => {
+    await renderSigninWithServerFieldErrors();
+
+    expect(screen.queryByText("Validation failed.", { exact: true })).toBeNull();
+    expectNoFieldSummary(screen.getByRole("button", { name: "Sign in" }).closest("form"));
   });
 
   it("does not duplicate signin verification failure in the status region", async () => {
@@ -790,9 +897,9 @@ describe("signin-form:", () => {
     await user.clear(email);
     await user.type(email, "not-an-email");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(screen.getByRole("alert").textContent).toMatch(/check these fields/i);
-    expect(screen.getByRole("alert").textContent).toMatch(/email/i);
-    expect(screen.getByRole("alert").textContent).not.toMatch(/no session is currently observed/i);
+    fieldErrorList(email, [/valid email address/i]);
+    expectNoFieldSummary(screen.getByRole("button", { name: "Sign in" }).closest("form"));
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("does not show a stale signin rejection after a newer auth generation", async () => {

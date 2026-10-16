@@ -26,9 +26,15 @@ describe('auth-fields:', () => {
     expect(password.getAttribute('maxlength')).toBeNull();
 
     expect(email.getAttribute('aria-invalid')).toBe('true');
-    expect(email.getAttribute('aria-describedby')).toBeTruthy();
-    expect(screen.getByText('Enter a valid email address.').id).toBe(email.getAttribute('aria-describedby'));
+    const emailErrors = document.getElementById(email.getAttribute('aria-describedby') ?? '');
+    expect(emailErrors?.tagName).toBe('UL');
+    expect(Array.from(emailErrors?.querySelectorAll(':scope > li') ?? [], (item) => item.textContent))
+      .toEqual(['Enter a valid email address.']);
     expect(password.getAttribute('aria-invalid')).toBe('true');
+    const passwordErrors = document.getElementById(password.getAttribute('aria-describedby') ?? '');
+    expect(passwordErrors?.tagName).toBe('UL');
+    expect(Array.from(passwordErrors?.querySelectorAll(':scope > li') ?? [], (item) => item.textContent))
+      .toEqual(['Password is too short.']);
     expect(screen.getByRole('alert').textContent).toContain('Account creation could not be confirmed.');
   });
 

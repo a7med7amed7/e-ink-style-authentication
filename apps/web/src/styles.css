@@ -69,12 +69,34 @@ button:disabled { border-color: #444; background: #444; cursor: wait; }
 
 button[type="button"] { border-color: #514d43; background: #f2eee3; color: #171717; }
 
+button.password-toggle {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 0.25rem;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: #171717;
+  transform: translateY(-50%);
+}
+
+.password-control { position: relative; }
+.password-control input { padding-inline-end: 3.5rem; }
+.password-toggle svg { display: block; width: 1.5rem; height: 1.5rem; }
+
 input:focus-visible, button:focus-visible, a:focus-visible {
   outline: 3px solid #005fcc;
   outline-offset: 3px;
 }
 
 fieldset p, [role="alert"] { margin: 0; color: #7b0000; }
+.field-errors, .submission-errors { margin: 0; padding-inline-start: 1.25rem; color: #7b0000; }
 
 section { margin-block: 1rem; padding: 0.75rem; border: 2px solid #514d43; border-radius: 0.5rem; background: #fffdf7; }
 
