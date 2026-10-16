@@ -12,6 +12,28 @@ Then open <http://localhost:3000>. This local path creates its session key autom
 
 If upgrading from the earlier separate-bridge Compose layout, run `docker compose -f compose.app.yaml down` once before starting the updated file. This releases the old container address without deleting either the MongoDB data volume or the generated-key volume. Then use the command above. Do not use `down -v` unless you intend to delete local accounts, sessions, and the generated key.
 
+## Screenshots
+
+Captured from the running Docker app. Click any image to view it at full size.
+
+| Sign up | Sign in |
+| --- | --- |
+| [![Sign-up form with an inline password visibility icon](docs/screenshots/signup.png)](docs/screenshots/signup.png) | [![Sign-in form](docs/screenshots/signin.png)](docs/screenshots/signin.png) |
+
+| Sign-up validation | Sign-in validation |
+| --- | --- |
+| [![Sign-up errors shown as separate bullets beneath each field](docs/screenshots/signup-validation.png)](docs/screenshots/signup-validation.png) | [![Sign-in errors shown beneath the email and password fields](docs/screenshots/signin-validation.png)](docs/screenshots/signin-validation.png) |
+
+**Authenticated welcome page**
+
+[![Welcome page after successful authentication, with a sign-out action](docs/screenshots/welcome.png)](docs/screenshots/welcome.png)
+
+**Mobile layout (375px)**
+
+| Sign up | Field validation |
+| --- | --- |
+| [<img src="docs/screenshots/signup-mobile.png" alt="Sign-up form at mobile width" width="260">](docs/screenshots/signup-mobile.png) | [<img src="docs/screenshots/signup-validation-mobile.png" alt="Separate validation bullets at mobile width" width="260">](docs/screenshots/signup-validation-mobile.png) |
+
 ## Prerequisites
 
 - Node.js **24.22.0** and npm **11.19.1** (`.nvmrc` and `package.json` pin both) for repository checks and direct-host development.
