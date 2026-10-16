@@ -30,7 +30,7 @@ export function resolveRateLimitPolicy(
   path: string,
   overrides: Readonly<Record<string, RateLimitPolicy>> = {},
 ): ResolvedPolicy {
-  const pathname = path.split("?", 1)[0]?.replace(/\/+$/, "") || "/";
+  const pathname = (path.split("?", 1)[0] ?? "/").replace(/\/+$/, "").toLowerCase() || "/";
   const key = `${method.toUpperCase()} ${pathname}`;
   const policy = overrides[key] ?? DEFAULT_RATE_LIMIT_POLICIES[key] ?? defaultPolicy;
   return { limit: policy.limit, ttl: policy.ttl, blockDuration: policy.blockDuration ?? policy.ttl };
@@ -49,7 +49,9 @@ export class RateLimitGuard extends ThrottlerGuard {
 
   protected override handleRequest(request: ThrottlerRequest): Promise<boolean> {
     const route = request.context.switchToHttp().getRequest<RequestShape>();
-    const path = route.originalUrl ?? route.url ?? `${route.baseUrl ?? ""}${route.route?.path ?? route.path ?? "/"}`;
+    const path = route.route?.path === undefined
+      ? route.path ?? route.url ?? route.originalUrl ?? "/"
+      : `${route.baseUrl ?? ""}/${route.route.path}`.replace(/\/{2,}/g, "/");
     const policy = resolveRateLimitPolicy(route.method ?? "GET", path, this.policies);
     return super.handleRequest({ ...request, ...policy });
   }

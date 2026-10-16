@@ -801,6 +801,18 @@ T101 assessment has executed and recorded the unavailable actual-speech evidence
 
 **Independent validation**: Every mandatory contract has actual classified evidence; public GitHub source is anonymously accessible; no missing security gate is disguised by documentation.
 
+- [x] T133 Correct route-limit policy selection for Express case-insensitive authentication paths in `apps/api/src/security/rate-limit.guard.ts` and `apps/api/test/security.integration.test.ts`.
+  After: T115 root source finding (before final audit closure). Check: **K133**. Coverage: FR-017, FR-018, V09, V17.
+  Expected: Requests matching the same Nest/Express auth route use its canonical policy regardless of URL case or query/trailing slash spelling. Signup sixth, signin eleventh and logout31st remain429 with positive Retry-After and no rejected password work; default route policy cannot substitute for a matched auth handler.
+  RED/behavior target: Root final audit found policy lookup prefers raw originalUrl with case-sensitive keys while Express routes are case-insensitive. Prove with real HTTP boundary requests before the smallest canonical matched-route fix; no limit increases or test bypasses.
+  Execution refinement: Recorded before coding as an isolated final-audit security correction; verify focused regression and the full affected suites before committing.
+
+- [ ] T134 Offer explicit protected-page recovery after a settled bootstrap/navigation identity failure in `apps/web/src/auth/auth-controller.ts` and `apps/web/test/route-trust.test.tsx`.
+  After: T115 root source finding (before final audit closure). Check: **K134**. Coverage: FR-019, FR-025, FR-029, V14.
+  Expected: A current failed ordinary identity check keeps protected content hidden and exposes safe session-recheck feedback/action; retry may verify identity or anonymity. Preserve existing operation feedback, uncertainty, generation/read guards, and mutation serialization; no automatic POST retry.
+  RED/behavior target: Failed initial bootstrap/navigation reads leave unknown with no message, while ProtectedRoute requires a message to expose Check session. Prove the missing action through the real controller and protected rendering before the smallest safe correction.
+  Execution refinement: Recorded before coding as a separate two-file task (at most 100 added production lines); adjacent outage recovery improvement, not a claim that the existing post-mutation FR-023 path was broken.
+
 - [ ] T113 Run fresh lint/typecheck/production-build and built same-origin API/static smoke in `docs/evidence/build.md`.
   After: T112. Check: **K113**. Coverage: FR-016, FR-030, FR-031, FR-033, V11, V17, V20.
   Expected: Commands exit0; static SPA fallback works; /api unknown404 remains JSON; startup/secrets/native flags remain correct.
@@ -953,6 +965,8 @@ Run from repository root under the selected runtime. K-number matches T-number. 
 | K111 | `git diff -- AI.md` |
 | K132 | `npm run lint && npm run typecheck` in the refreshed clean source after fresh `npm ci`, with no pre-existing shared dist |
 | K112 | `npm ci && npm run db:up && npm run verify` |
+| K133 | `npm run build:test:api -- apps/api/test/security.integration.test.ts && node --test apps/api/dist-test/targets/security.integration.test/test/security.integration.test.js` |
+| K134 | `npm run test:unit --workspace @easygen/web -- test/route-trust.test.tsx` |
 | K113 | `npm run lint && npm run typecheck && npm run build` |
 | K114 | `npm run test:e2e` |
 | K115 | `npm run verify` |

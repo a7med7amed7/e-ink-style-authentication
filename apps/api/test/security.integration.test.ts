@@ -89,7 +89,7 @@ function countPasswordWork(fixture: MongoFixture): PasswordWorkCounts {
 
 function validJsonPost(
   fixture: MongoFixture,
-  path: "/api/auth/signup" | "/api/auth/signin",
+  path: string,
   body: Record<string, string>,
 ) {
   return post(fixture, path)
@@ -309,7 +309,7 @@ void test("throttle: enforces the four per-route limits without password work or
     assertApiError(response, 401, "UNAUTHENTICATED");
   }
   const oneHundredTwentyFirstIdentity = await anonymous
-    .get("/api/auth/me")
+    .get("/API/AUTH/ME/?source=case")
     .set("Origin", fixture.config.appOrigin);
   assertRateLimited(oneHundredTwentyFirstIdentity);
 
@@ -335,4 +335,68 @@ void test("throttle: enforces the four per-route limits without password work or
   assert.equal(independentSignup.status, 201, independentSignup.text);
   assert.equal(await isolatedFixture.database.collection("users").countDocuments(), 1);
   assert.equal(await fixture.database.collection("users").countDocuments(), 5);
+});
+
+void test("throttle: case variants and URL suffixes keep the matched auth route policy", async (context) => {
+  const fixture = await fixtureFor(context);
+  const passwordCalls = countPasswordWork(fixture);
+
+  for (let index = 1; index <= 5; index += 1) {
+    const response = await validJsonPost(fixture, "/api/auth/signup", {
+      email: `case${String(index)}@example.test`,
+      name: `Case User ${String(index)}`,
+      password: "Valid123!",
+    });
+    assert.equal(response.status, 201, response.text);
+  }
+  const sixthSignup = await validJsonPost(fixture, "/API/AUTH/SIGNUP/?source=case", {
+    email: "case6@example.test",
+    name: "Case User 6",
+    password: "Valid123!",
+  });
+  const signupHashes = passwordCalls.hash;
+  const signupUsers = await fixture.database.collection("users").countDocuments();
+
+  for (let index = 1; index <= 10; index += 1) {
+    const response = await validJsonPost(fixture, "/api/auth/signin", {
+      email: `missing${String(index)}@example.test`,
+      password: "Valid123!",
+    });
+    assertApiError(response, 401, "INVALID_CREDENTIALS");
+  }
+  const eleventhSignin = await validJsonPost(fixture, "/API/AUTH/SIGNIN?source=case", {
+    email: "missing11@example.test",
+    password: "Valid123!",
+  });
+  const signinDummyVerifications = passwordCalls.verifyDummy;
+
+  for (let index = 1; index <= 30; index += 1) {
+    const response = await post(fixture, "/api/auth/logout")
+      .set("Origin", fixture.config.appOrigin)
+      .set("X-Requested-With", "XMLHttpRequest");
+    assertApiError(response, 401, "UNAUTHENTICATED");
+  }
+  const thirtyFirstLogout = await post(fixture, "/API/AUTH/LOGOUT/?source=case")
+    .set("Origin", fixture.config.appOrigin)
+    .set("X-Requested-With", "XMLHttpRequest");
+  const outcomes = {
+    signupStatus: sixthSignup.status,
+    signupHashes,
+    signupUsers,
+    signinStatus: eleventhSignin.status,
+    signinDummyVerifications,
+    logoutStatus: thirtyFirstLogout.status,
+  };
+  assert.deepEqual(outcomes, {
+    signupStatus: 429,
+    signupHashes: 5,
+    signupUsers: 5,
+    signinStatus: 429,
+    signinDummyVerifications: 10,
+    logoutStatus: 429,
+  });
+
+  assertRateLimited(sixthSignup);
+  assertRateLimited(eleventhSignin);
+  assertRateLimited(thirtyFirstLogout);
 });
