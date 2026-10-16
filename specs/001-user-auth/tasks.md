@@ -517,17 +517,17 @@ Playwright webServer runs the built same-origin app with explicit test origin/po
 
 ### Tests first
 
-- [ ] T081 [P] [US4] Write delayed-read, double-submit, queued-logout, body-pending and five-second threshold cases in `apps/web/test/auth-concurrency.test.ts`.
+- [x] T081 [P] [US4] Write delayed-read, double-submit, queued-logout, body-pending and five-second threshold cases in `apps/web/test/auth-concurrency.test.ts`.
   After: T080. Check: **K081**. Coverage: FR-019, FR-020, FR-021, FR-022, V10, V14.
   Expected: Old success/401/error/finally ignored; original POST/body unresolved blocks second mutation; one logout queue; timer only changes messaging.
   RED/behavior target: Missing queue/timer/race behavior fails; already-covered base locking stays regression coverage.
 
-- [ ] T082 [P] [US4] Write the complete client outcome table including wrong-account, rejected transport and failed logout with anonymous observation in `apps/web/test/auth-outcomes.test.ts`.
+- [x] T082 [P] [US4] Write the complete client outcome table including wrong-account, rejected transport and failed logout with anonymous observation in `apps/web/test/auth-outcomes.test.ts`.
   After: T080. Check: **K082**. Coverage: FR-019, FR-023, FR-024, FR-026, V14.
   Expected: Every contracts/client-auth.md row has a named case; explicit recheck may observe state without changing failed/unacknowledged destruction into success.
   RED/behavior target: Missing/incorrect observation-versus-operation evidence fails.
 
-- [ ] T083 [P] [US4] Write focus/navigation/StrictMode render-trust tests before the stronger browser bridge in `apps/web/test/route-trust.test.tsx`.
+- [x] T083 [P] [US4] Write focus/navigation/StrictMode render-trust tests before the stronger browser bridge in `apps/web/test/route-trust.test.tsx`.
   After: T080. Check: **K083**. Coverage: FR-008, FR-020, FR-025, V10, V14.
   Expected: Invalidate before protected render; defer focus read during mutation; route key/generation required; effects never dispatch POST.
   RED/behavior target: Focus/navigation trust can currently remain stale or publish during a mutation.
@@ -535,37 +535,53 @@ Playwright webServer runs the built same-origin app with explicit test origin/po
 
 ### Implementation and integration
 
-- [ ] T084 [US4] Implement one coalesced queued logout and mutation/read operation-ID cleanup guards in `apps/web/src/auth/auth-controller.ts`.
+- [x] T084 [US4] Implement one coalesced queued logout and mutation/read operation-ID cleanup guards in `apps/web/src/auth/auth-controller.ts`.
   After: T081, T082, T083. Check: **K084**. Coverage: FR-020, FR-021, V10, V14.
   Expected: Queued logout waits for original transport/body settlement; superseded signin never flashes verified state; stale finally cannot clear newer work.
   RED/behavior target: T081.
 
-- [ ] T085 [US4] Add independent five-second slow-message timer without aborting or releasing tracked work in `apps/web/src/auth/auth-controller.ts`.
+- [x] T085 [US4] Add independent five-second slow-message timer without aborting or releasing tracked work in `apps/web/src/auth/auth-controller.ts`.
   After: T084. Check: **K085**. Coverage: FR-021, FR-022, V14.
   Expected: Still verifying only; timer cleanup belongs to operation ID; original promise retained through response/body/rejection.
   RED/behavior target: T081.
 
-- [ ] T086 [US4] Implement server-outcome uncertainty, intended-identity matching and explicit recheck policy in `apps/web/src/auth/auth-controller.ts`.
+- [x] T086 [US4] Implement server-outcome uncertainty, intended-identity matching and explicit recheck policy in `apps/web/src/auth/auth-controller.ts`.
   After: T085. Check: **K086**. Coverage: FR-019, FR-023, FR-024, FR-026, V14.
   Expected: Rejected POST+me401 stays unknown for operation; matching me may verify observed identity; failed logout never earns receipt; explicit later recheck preserves older-work disclosure.
   RED/behavior target: T082.
 
-- [ ] T087 [US4] Implement deferred/coalesced revalidation and pre-render route trust invalidation in `apps/web/src/auth/auth-controller.ts` and `apps/web/src/router.tsx`.
-  After: T086. Check: **K087**. Coverage: FR-008, FR-020, FR-025, V10, V14.
+- [x] T118 [US4] Add deferred/coalesced revalidation and synchronous trust invalidation in `apps/web/src/auth/auth-controller.ts` and `apps/web/test/auth-concurrency.test.ts`.
+  After: T086, T083. Check: **K118**. Coverage: FR-019, FR-021, FR-024, V10, V14.
+  Expected: Focus/navigation reads requested during mutations defer and coalesce without stale identity or cleanup applying.
+  RED/behavior target: T083 focus/deferred-read cases.
+
+- [x] T119 [US4] Expose controller-bound route factories and wire the same controller before React mount in `apps/web/src/router.tsx` and `apps/web/src/main.tsx`.
+  After: T118. Check: **K119**. Coverage: FR-019, FR-021, FR-024, V10, V14.
+  Expected: Production routes and memory-router tests share the same route factory; navigation revokes trust before protected rendering, without an effect-time flash.
+  RED/behavior target: T083 navigation case. Compile passes; the focus target closes at T120.
+
+- [x] T120 [US4] Bind focus revalidation to the stable controller in `apps/web/src/auth/auth-context.tsx` and `apps/web/test/auth-context.test.tsx`.
+  After: T119. Check: **K120**. Coverage: FR-019, FR-021, FR-024, V10, V14.
+  Expected: The focus event synchronously revokes trust; event-listener cleanup and StrictMode never issue mutation POSTs.
+  RED/behavior target: T083 focus/StrictMode cases.
+  Execution refinement: T118–T120 split the original T087 before implementation after route-trust tests exposed missing router/focus bridge ownership; each keeps its two-file/100-production-line budget. T087 remains the integrated GREEN checkpoint.
+
+- [x] T087 [US4] Implement deferred/coalesced revalidation and pre-render route trust invalidation in `apps/web/src/auth/auth-controller.ts` and `apps/web/src/router.tsx`.
+  After: T120. Check: **K087**. Coverage: FR-008, FR-020, FR-025, V10, V14.
   Expected: Focus and relevant navigation recheck; pending mutation defers read; route transition cannot render protected content first; no cross-tab ordering promise.
   RED/behavior target: T083.
 
-- [ ] T088 [US4] Expose slow/unknown feedback and Check session action with safe operation wording in `apps/web/test/auth-status.test.tsx` and `apps/web/src/components/auth-status.tsx`.
+- [x] T088 [US4] Expose slow/unknown feedback and Check session action with safe operation wording in `apps/web/test/auth-status.test.tsx` and `apps/web/src/components/auth-status.tsx`.
   After: T087. Check: **K088**. Coverage: FR-019, FR-022, FR-023, FR-024, V14, V18.
   Expected: Still verifying nonblocking; failed/unacknowledged logout distinct from anonymous observation; no misleading success navigation.
   RED/behavior target: Tests in this task fail for unknown/slow/session-recheck wording before implementation.
 
-- [ ] T089 [US4] Mount uncertainty/status feedback in both forms while retaining synchronous submit locks in `apps/web/src/pages/signup.tsx` and `apps/web/src/pages/signin.tsx`.
+- [x] T089 [US4] Mount uncertainty/status feedback in both forms while retaining synchronous submit locks in `apps/web/src/pages/signup.tsx` and `apps/web/src/pages/signin.tsx`.
   After: T088. Check: **K089**. Coverage: FR-019, FR-022, FR-023, FR-026, FR-027, V14, V18.
   Expected: Pending/unknown/help states are visible/announced; session recheck sends GET only; no cached credential retries.
   RED/behavior target: T082.
 
-- [ ] T090 [US4] Run every concurrency/outcome case and record the transport-only ordering limitation in `docs/evidence/us4.md`.
+- [x] T090 [US4] Run every concurrency/outcome case and record the transport-only ordering limitation in `docs/evidence/us4.md`.
   After: T089. Check: **K090**. Coverage: FR-019, FR-020, FR-021, FR-022, FR-023, FR-024, FR-025, FR-026, FR-031, V10, V14.
   Expected: All controlled promise cases pass; note older rejected server work and cross-tab ordering remain unproven/deferred, not silently guaranteed.
 
@@ -818,9 +834,12 @@ Run from repository root under the selected runtime. K-number matches T-number. 
 | K081 | `npm run test:unit --workspace @easygen/web -- test/auth-concurrency.test.ts -t 'ordering:'` |
 | K082 | `npm run test:unit --workspace @easygen/web -- test/auth-outcomes.test.ts -t 'outcome:'` |
 | K083 | `npm run test:unit --workspace @easygen/web -- test/route-trust.test.tsx -t 'route-trust:'` |
-| K084 | `npm run test:unit --workspace @easygen/web -- test/auth-concurrency.test.ts -t 'ordering: queue'` |
-| K085 | `npm run test:unit --workspace @easygen/web -- test/auth-concurrency.test.ts -t 'ordering: threshold'` |
+| K084 | `npm run test:unit --workspace @easygen/web -- test/auth-concurrency.test.ts` |
+| K085 | `npm run test:unit --workspace @easygen/web -- test/auth-concurrency.test.ts` |
 | K086 | `npm run test:unit --workspace @easygen/web -- test/auth-outcomes.test.ts -t 'outcome:'` |
+| K118 | `npm run test:unit --workspace @easygen/web -- test/auth-concurrency.test.ts` |
+| K119 | `npm run typecheck --workspace @easygen/web && npm run test:unit --workspace @easygen/web -- test/route-trust.test.tsx -t 'navigation'` |
+| K120 | `npm run test:unit --workspace @easygen/web -- test/route-trust.test.tsx test/auth-context.test.tsx` |
 | K087 | `npm run test:unit --workspace @easygen/web -- test/route-trust.test.tsx -t 'route-trust:'` |
 | K088 | `npm run test:unit --workspace @easygen/web -- test/auth-status.test.tsx -t 'auth-status:'` |
 | K089 | `npm run test:unit --workspace @easygen/web` |

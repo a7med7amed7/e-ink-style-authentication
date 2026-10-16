@@ -10,7 +10,12 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ controller, children }: { controller: AuthController; children: ReactNode }): React.JSX.Element {
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  useEffect(() => { void controller.revalidate('bootstrap'); }, [controller]);
+  useEffect(() => {
+    const revalidateOnFocus = () => { void controller.revalidate('focus'); };
+    window.addEventListener('focus', revalidateOnFocus);
+    void controller.revalidate('bootstrap');
+    return () => { window.removeEventListener('focus', revalidateOnFocus); };
+  }, [controller]);
   const value = useMemo(() => ({ controller, snapshot }), [controller, snapshot]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

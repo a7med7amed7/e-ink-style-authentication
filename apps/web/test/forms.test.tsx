@@ -6,7 +6,7 @@ import type { PublicUser, SigninInput, SignupInput } from "@easygen/auth-contrac
 import type { OperationResult } from "../src/auth/auth-controller.js";
 import { AuthProvider } from "../src/auth/auth-context.js";
 import { ProtectedRoute } from "../src/auth/protected-route.js";
-import { appRouter } from "../src/router.js";
+import { createAppRouter } from "../src/router.js";
 import { SignupPage } from "../src/pages/signup.js";
 import { WelcomePage } from "../src/pages/welcome.js";
 
@@ -82,7 +82,7 @@ class FormsController {
 
   signup = (input: SignupInput): Promise<OperationResult> => {
     this.signupInputs.push(input);
-    this.update({ status: "authenticating", pendingOperation: "signup" });
+    this.update({ status: "authenticating", generation: this.snapshot.generation + 1, pendingOperation: "signup" });
     return new Promise((resolve) => {
       this.resolveSignup = resolve;
     });
@@ -109,6 +109,7 @@ class FormsController {
   }
 
   failSignup(): void {
+    const message = "We could not verify the new session. Check session again.";
     this.update({
       status: "unknown",
       generation: 1,
@@ -117,8 +118,15 @@ class FormsController {
       routeTrusted: false,
       pendingOperation: null,
       lastOperationOutcome: "verification-failed",
+      serverObservation: "unknown",
+      message,
     });
-    this.resolveSignup?.({ outcome: "verification-failed" });
+    this.resolveSignup?.({ outcome: "verification-failed", message });
+  }
+
+  completeSignupAfterUpdate(values: Partial<Snapshot>, result: OperationResult): void {
+    this.update(values);
+    this.resolveSignup?.(result);
   }
 }
 
@@ -139,7 +147,8 @@ class SigninFormsController {
 
   signin = (input: SigninInput): Promise<OperationResult> => {
     this.signinInputs.push(input);
-    this.update({ status: "authenticating", pendingOperation: "signin", routeTrusted: false });
+    this.update({ status: "authenticating", generation: this.snapshot.generation + 1,
+      pendingOperation: "signin", routeTrusted: false });
     return new Promise((resolve) => { this.resolveSignin = resolve; });
   };
 
@@ -161,6 +170,65 @@ class SigninFormsController {
       serverObservation: "anonymous", message: "Invalid email or password." });
     this.resolveSignin?.({ outcome: "rejected", message: "Invalid email or password." });
   }
+
+  failSigninVerification(): void {
+    const message = "We could not verify this sign-in. Check session again.";
+    this.update({ status: "unknown", generation: 1, verifiedGeneration: null, latestReadId: 1,
+      routeTrusted: false, pendingOperation: null, lastOperationOutcome: "verification-failed",
+      serverObservation: "unknown", message });
+    this.resolveSignin?.({ outcome: "verification-failed", message });
+  }
+
+  completeSigninAfterUpdate(values: Partial<Snapshot>, result: OperationResult): void {
+    this.update(values);
+    this.resolveSignin?.(result);
+  }
+}
+
+class UncertainSignupFormsController extends FormsController {
+  readonly rechecks: string[] = [];
+
+  override revalidate = (reason = "bootstrap"): Promise<void> => {
+    this.rechecks.push(reason);
+    if (reason === "retry") {
+      this.update({ status: "authenticated", generation: 1, verifiedGeneration: 1, latestReadId: 2,
+        routeTrusted: true, serverObservation: "authenticated", serverOutcomeUncertain: true,
+        lastOperationOutcome: "uncertain", message: "Session verified", user: signedInUser });
+    }
+    return Promise.resolve();
+  };
+
+  override signup = (input: SignupInput): Promise<OperationResult> => {
+    this.signupInputs.push(input);
+    const message = "We couldn't confirm sign-up. Check session again.";
+    this.update({ status: "unknown", generation: 1, latestReadId: 1, verifiedGeneration: null,
+      routeTrusted: false, pendingOperation: null, serverObservation: "anonymous",
+      serverOutcomeUncertain: true, lastOperationOutcome: "uncertain", message });
+    return Promise.resolve({ outcome: "uncertain", message });
+  };
+}
+
+class UncertainSigninFormsController extends SigninFormsController {
+  readonly rechecks: string[] = [];
+
+  override revalidate = (reason = "bootstrap"): Promise<void> => {
+    this.rechecks.push(reason);
+    if (reason === "retry") {
+      this.update({ status: "authenticated", generation: 1, verifiedGeneration: 1, latestReadId: 2,
+        routeTrusted: true, serverObservation: "authenticated", serverOutcomeUncertain: true,
+        lastOperationOutcome: "uncertain", message: "Session verified", user: signedInUser });
+    }
+    return Promise.resolve();
+  };
+
+  override signin = (input: SigninInput): Promise<OperationResult> => {
+    this.signinInputs.push(input);
+    const message = "We couldn't confirm sign-in. Check session again.";
+    this.update({ status: "unknown", generation: 1, latestReadId: 1, verifiedGeneration: null,
+      routeTrusted: false, pendingOperation: null, serverObservation: "anonymous",
+      serverOutcomeUncertain: true, lastOperationOutcome: "uncertain", message });
+    return Promise.resolve({ outcome: "uncertain", message });
+  };
 }
 
 class LogoutFormsController {
@@ -248,10 +316,11 @@ function renderWelcome(controller: LogoutFormsController) {
 }
 
 async function renderApplication(controller: SigninFormsController, initialEntry: string) {
-  await act(async () => { await appRouter.navigate(initialEntry); });
+  const router = createAppRouter(controller as never);
+  await act(async () => { await router.navigate(initialEntry); });
   return render(
     <AuthProvider controller={controller as never}>
-      <RouterProvider router={appRouter} />
+      <RouterProvider router={router} />
     </AuthProvider>,
   );
 }
@@ -314,6 +383,84 @@ describe("signup-form:", () => {
     const recovery = await screen.findByRole("alert");
     expect(recovery.textContent).toMatch(/account may have been created/i);
     expect(recovery.textContent).toMatch(/sign in is the recovery path/i);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("button", { name: "Check session" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Create your account" })).toBeTruthy();
+    expect(screen.queryByText("Welcome to the application.")).toBeNull();
+  });
+
+  it("does not show a stale signup rejection after a newer auth generation", async () => {
+    const user = userEvent.setup();
+    const controller = new FormsController();
+    renderRoutes(controller, "/signup");
+
+    await user.type(screen.getByLabelText<HTMLInputElement>("Email"), "ada@example.test");
+    await user.type(screen.getByLabelText<HTMLInputElement>("Name"), "Ada Example");
+    await user.type(screen.getByLabelText<HTMLInputElement>("Password"), "Abcdef1!");
+    const submit = screen.getByRole<HTMLButtonElement>("button", { name: /create account|sign up/i });
+    await user.click(submit);
+
+    act(() => {
+      controller.completeSignupAfterUpdate({
+        status: "unauthenticated", generation: 2, verifiedGeneration: null, latestReadId: 2,
+        routeTrusted: true, pendingOperation: null, serverObservation: "anonymous",
+      }, { outcome: "rejected", message: "Stale sign-up rejection." });
+    });
+    await waitFor(() => { expect(submit.disabled).toBe(false); });
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText("Stale sign-up rejection.")).toBeNull();
+  });
+
+  it("does not navigate from a signup callback superseded by a newer auth generation", async () => {
+    const user = userEvent.setup();
+    const controller = new FormsController();
+    renderRoutes(controller, "/signup");
+
+    await user.type(screen.getByLabelText<HTMLInputElement>("Email"), "ada@example.test");
+    await user.type(screen.getByLabelText<HTMLInputElement>("Name"), "Ada Example");
+    await user.type(screen.getByLabelText<HTMLInputElement>("Password"), "Abcdef1!");
+    const submit = screen.getByRole<HTMLButtonElement>("button", { name: /create account|sign up/i });
+    await user.click(submit);
+
+    act(() => {
+      controller.completeSignupAfterUpdate({
+        status: "authenticated", generation: 2, verifiedGeneration: 2, latestReadId: 2,
+        routeTrusted: true, pendingOperation: null, serverObservation: "authenticated", user: signedInUser,
+      }, { outcome: "confirmed" });
+    });
+    await waitFor(() => { expect(submit.disabled).toBe(false); });
+
+    expect(screen.getByRole("heading", { name: "Create your account" })).toBeTruthy();
+    expect(screen.queryByText("Welcome to the application.")).toBeNull();
+  });
+
+  it("keeps signup uncertainty visible after a session check observes the user", async () => {
+    const userEvents = userEvent.setup();
+    const controller = new UncertainSignupFormsController();
+    renderRoutes(controller, "/signup");
+
+    await userEvents.type(screen.getByLabelText<HTMLInputElement>("Email"), "ada@example.test");
+    await userEvents.type(screen.getByLabelText<HTMLInputElement>("Name"), "Ada Example");
+    await userEvents.type(screen.getByLabelText<HTMLInputElement>("Password"), "Abcdef1!");
+    await userEvents.click(screen.getByRole("button", { name: /create account|sign up/i }));
+
+    expect(await screen.findByRole("status")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toMatch(/account may have been created/i);
+    expect(screen.getByRole("status").textContent).not.toMatch(/couldn't confirm sign-up/i);
+    expect(screen.getByRole("status").textContent).toMatch(/may still complete/i);
+    expect(screen.getByRole("status").textContent).toMatch(/no session is currently observed/i);
+    expect(screen.getByRole("status").textContent).not.toMatch(/check your session before trying again/i);
+    expect(screen.getByRole("heading", { name: "Create your account" })).toBeTruthy();
+    expect(screen.queryByText("Welcome to the application.")).toBeNull();
+
+    await userEvents.click(screen.getByRole("button", { name: /check session/i }));
+
+    expect(controller.rechecks.at(-1)).toBe("retry");
+    expect(controller.signupInputs).toHaveLength(1);
+    expect(screen.getByRole("status").textContent).toMatch(/session verified/i);
+    expect(screen.getByRole("status").textContent).toMatch(/may still complete/i);
     expect(screen.getByRole("heading", { name: "Create your account" })).toBeTruthy();
     expect(screen.queryByText("Welcome to the application.")).toBeNull();
   });
@@ -391,6 +538,93 @@ describe("signin-form:", () => {
     expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
     expect(screen.queryByText("Welcome to the application.")).toBeNull();
     expect(controller.signinInputs).toEqual([{ email: "ada@example.test", password: "short" }]);
+  });
+
+  it("does not duplicate signin verification failure in the status region", async () => {
+    const user = userEvent.setup();
+    const controller = new SigninFormsController();
+    await renderApplication(controller, "/signin");
+
+    await user.type(await screen.findByRole("textbox", { name: "Email" }), "ada@example.test");
+    await user.type(screen.getByLabelText<HTMLInputElement>("Password"), "short");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    act(() => { controller.failSigninVerification(); });
+
+    expect((await screen.findByRole("alert")).textContent).toMatch(/could not verify this sign-in/i);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("button", { name: "Check session" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
+  });
+
+  it("does not show a stale signin rejection after a newer auth generation", async () => {
+    const user = userEvent.setup();
+    const controller = new SigninFormsController();
+    await renderApplication(controller, "/signin");
+
+    await user.type(await screen.findByRole("textbox", { name: "Email" }), "ada@example.test");
+    await user.type(screen.getByLabelText<HTMLInputElement>("Password"), "short");
+    const submit = screen.getByRole<HTMLButtonElement>("button", { name: "Sign in" });
+    await user.click(submit);
+
+    act(() => {
+      controller.completeSigninAfterUpdate({
+        status: "unauthenticated", generation: 2, verifiedGeneration: null, latestReadId: 2,
+        routeTrusted: true, pendingOperation: null, serverObservation: "anonymous",
+      }, { outcome: "rejected", message: "Stale sign-in rejection." });
+    });
+    await waitFor(() => { expect(submit.disabled).toBe(false); });
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText("Stale sign-in rejection.")).toBeNull();
+  });
+
+  it("does not navigate from a signin callback superseded by a newer auth generation", async () => {
+    const user = userEvent.setup();
+    const controller = new SigninFormsController();
+    await renderApplication(controller, "/signin");
+
+    await user.type(await screen.findByRole("textbox", { name: "Email" }), "ada@example.test");
+    await user.type(screen.getByLabelText<HTMLInputElement>("Password"), "short");
+    const submit = screen.getByRole<HTMLButtonElement>("button", { name: "Sign in" });
+    await user.click(submit);
+
+    act(() => {
+      controller.completeSigninAfterUpdate({
+        status: "authenticated", generation: 2, verifiedGeneration: 2, latestReadId: 2,
+        routeTrusted: true, pendingOperation: null, serverObservation: "authenticated", user: signedInUser,
+      }, { outcome: "confirmed" });
+    });
+    await waitFor(() => { expect(submit.disabled).toBe(false); });
+
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
+    expect(screen.queryByText("Welcome to the application.")).toBeNull();
+  });
+
+  it("keeps signin uncertainty visible after a session check observes the user", async () => {
+    const userEvents = userEvent.setup();
+    const controller = new UncertainSigninFormsController();
+    await renderApplication(controller, "/signin");
+
+    await userEvents.type(await screen.findByRole("textbox", { name: "Email" }), "ada@example.test");
+    await userEvents.type(screen.getByLabelText<HTMLInputElement>("Password"), "short");
+    await userEvents.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByRole("status")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toMatch(/couldn't confirm sign-in/i);
+    expect(screen.getByRole("status").textContent).toMatch(/may still complete/i);
+    expect(screen.getByRole("status").textContent).not.toMatch(/check your session before trying again/i);
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
+    expect(screen.queryByText("Welcome to the application.")).toBeNull();
+
+    await userEvents.click(screen.getByRole("button", { name: /check session/i }));
+
+    expect(controller.rechecks.at(-1)).toBe("retry");
+    expect(controller.signinInputs).toHaveLength(1);
+    expect(screen.getByRole("status").textContent).toMatch(/session verified/i);
+    expect(screen.getByRole("status").textContent).toMatch(/may still complete/i);
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
+    expect(screen.queryByText("Welcome to the application.")).toBeNull();
   });
 });
 

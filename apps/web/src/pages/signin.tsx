@@ -2,6 +2,7 @@ import { useRef, useState, type SyntheticEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { SigninSchema } from '@easygen/auth-contract';
 import { AuthFields, type AuthFieldErrors, type AuthFieldName } from '../components/auth-fields.js';
+import { AuthStatus } from '../components/auth-status.js';
 import { useAuth } from '../auth/auth-context.js';
 
 type SigninValues = { email: string; password: string };
@@ -40,12 +41,16 @@ export function SigninPage(): React.JSX.Element {
 
     submittingRef.current = true;
     setSubmitting(true);
+    let submissionGeneration = controller.getSnapshot().generation;
     try {
-      const result = await controller.signin(parsed.data);
+      const request = controller.signin(parsed.data);
+      submissionGeneration = controller.getSnapshot().generation;
+      const result = await request;
       const current = controller.getSnapshot();
+      if (current.generation !== submissionGeneration) return;
       const verified = current.status === 'authenticated' && current.user?.email === parsed.data.email
         && current.verifiedGeneration === current.generation && current.routeTrusted;
-      if (verified && (result.outcome === 'confirmed' || result.outcome === 'uncertain')) {
+      if (verified && result.outcome === 'confirmed' && !current.serverOutcomeUncertain) {
         void navigate('/app', { replace: true });
         return;
       }
@@ -55,12 +60,18 @@ export function SigninPage(): React.JSX.Element {
         if (fieldErrors?.length) next[field] = fieldErrors;
       }
       setErrors(next);
-      setMessage(result.outcome === 'busy' ? 'A sign-in request is already in progress.'
-        : result.message ?? current.message ?? (result.outcome === 'confirmed'
-          ? 'We could not verify this sign-in. Check your session again.'
-          : 'We could not complete sign-in.'));
+      const authStatusOwnsMessage = current.serverOutcomeUncertain || current.pendingOperation !== null;
+      setMessage(authStatusOwnsMessage ? undefined
+        : result.outcome === 'busy' ? 'A sign-in request is already in progress.'
+          : result.message ?? current.message ?? (result.outcome === 'confirmed'
+            ? 'We could not verify this sign-in. Check your session again.'
+            : 'We could not complete sign-in.'));
     } catch {
-      setMessage("We couldn't confirm sign-in. Check your session again.");
+      const current = controller.getSnapshot();
+      if (current.generation === submissionGeneration && !current.serverOutcomeUncertain
+        && current.pendingOperation === null) {
+        setMessage("We couldn't confirm sign-in. Check your session again.");
+      }
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -75,6 +86,11 @@ export function SigninPage(): React.JSX.Element {
         {submitting || snapshot.pendingOperation === 'signin' ? 'Signing in…' : 'Sign in'}
       </button>
     </form>
+    <AuthStatus snapshot={snapshot} onCheckSession={() => controller.revalidate('retry')}
+      submissionMessageVisible={message !== undefined} />
+    {snapshot.serverOutcomeUncertain && snapshot.status === 'authenticated'
+      && snapshot.user !== undefined && snapshot.verifiedGeneration === snapshot.generation && snapshot.routeTrusted
+      ? <p><Link to="/app">Continue to the application</Link></p> : null}
     <p>New here? <Link to="/signup">Create an account</Link></p>
   </main>;
 }

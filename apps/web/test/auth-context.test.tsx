@@ -49,4 +49,35 @@ describe('auth-context:', () => {
     expect(signin).not.toHaveBeenCalled();
     expect(logout).not.toHaveBeenCalled();
   });
+
+  it('revalidates focus and removes the listener when the provider unmounts', async () => {
+    const focusRead = deferred<PublicUser>();
+    const me = vi.fn<AuthApi['me']>()
+      .mockResolvedValueOnce(user)
+      .mockReturnValueOnce(focusRead.promise);
+    const signup = vi.fn<AuthApi['signup']>();
+    const signin = vi.fn<AuthApi['signin']>();
+    const logout = vi.fn<AuthApi['logout']>();
+    const controller = new AuthController({ signup, signin, me, logout });
+
+    const view = render(<AuthProvider controller={controller}><Probe /></AuthProvider>);
+    expect(await screen.findByText('authenticated')).toBeTruthy();
+    expect(me).toHaveBeenCalledTimes(1);
+
+    act(() => { window.dispatchEvent(new Event('focus')); });
+    expect(me).toHaveBeenCalledTimes(2);
+    expect(controller.getSnapshot().routeTrusted).toBe(false);
+
+    view.unmount();
+    act(() => { window.dispatchEvent(new Event('focus')); });
+    expect(me).toHaveBeenCalledTimes(2);
+    expect(signup).not.toHaveBeenCalled();
+    expect(signin).not.toHaveBeenCalled();
+    expect(logout).not.toHaveBeenCalled();
+
+    await act(async () => {
+      focusRead.resolve(user);
+      await focusRead.promise;
+    });
+  });
 });

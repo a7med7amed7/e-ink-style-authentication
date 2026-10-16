@@ -2,6 +2,7 @@ import { useRef, useState, type SyntheticEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { SignupSchema } from '@easygen/auth-contract';
 import { AuthFields, type AuthFieldErrors, type AuthFieldName } from '../components/auth-fields.js';
+import { AuthStatus } from '../components/auth-status.js';
 import { useAuth } from '../auth/auth-context.js';
 
 type SignupValues = { email: string; name: string; password: string };
@@ -44,14 +45,18 @@ export function SignupPage(): React.JSX.Element {
 
     submittingRef.current = true;
     setSubmitting(true);
+    let submissionGeneration = controller.getSnapshot().generation;
     try {
-      const result = await controller.signup(parsed.data);
+      const request = controller.signup(parsed.data);
+      submissionGeneration = controller.getSnapshot().generation;
+      const result = await request;
       const current = controller.getSnapshot();
+      if (current.generation !== submissionGeneration) return;
       const verified = current.status === 'authenticated'
         && current.user?.email === parsed.data.email
         && current.verifiedGeneration === current.generation
         && current.routeTrusted;
-      if (verified && (result.outcome === 'confirmed' || result.outcome === 'uncertain')) {
+      if (verified && result.outcome === 'confirmed' && !current.serverOutcomeUncertain) {
         void navigate('/app', { replace: true });
         return;
       }
@@ -61,15 +66,21 @@ export function SignupPage(): React.JSX.Element {
         if (fieldErrors?.length) serverErrors[field] = fieldErrors;
       }
       setErrors(serverErrors);
+      const authStatusOwnsMessage = current.serverOutcomeUncertain || current.pendingOperation !== null;
       setMessage(result.outcome === 'uncertain' || result.outcome === 'verification-failed'
         ? 'Your account may have been created. Sign in is the recovery path; check your session before trying again.'
-        : result.outcome === 'busy'
+        : authStatusOwnsMessage ? undefined
+          : result.outcome === 'busy'
           ? 'A sign-up request is already in progress.'
           : result.message ?? current.message ?? (result.outcome === 'confirmed'
             ? 'We could not verify the new session. Check your session before continuing.'
             : 'We could not complete sign-up.'));
     } catch {
-      setMessage('We could not confirm sign-up. Your account may have been created; sign in is the recovery path.');
+      const current = controller.getSnapshot();
+      if (current.generation === submissionGeneration && !current.serverOutcomeUncertain
+        && current.pendingOperation === null) {
+        setMessage('We could not confirm sign-up. Your account may have been created; sign in is the recovery path.');
+      }
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -84,6 +95,11 @@ export function SignupPage(): React.JSX.Element {
         {submitting || snapshot.pendingOperation === 'signup' ? 'Creating account…' : 'Create account'}
       </button>
     </form>
+    <AuthStatus snapshot={snapshot} onCheckSession={() => controller.revalidate('retry')}
+      submissionMessageVisible={message !== undefined} />
+    {snapshot.serverOutcomeUncertain && snapshot.status === 'authenticated'
+      && snapshot.user !== undefined && snapshot.verifiedGeneration === snapshot.generation && snapshot.routeTrusted
+      ? <p><Link to="/app">Continue to the application</Link></p> : null}
     <p>Already have an account? <Link to="/signin">Sign in</Link></p>
   </main>;
 }
