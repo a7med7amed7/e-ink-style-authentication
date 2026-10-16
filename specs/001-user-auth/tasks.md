@@ -2,7 +2,7 @@
 
 **Input**: `specs/001-user-auth/` — [plan](plan.md), [specification](spec.md), [binding contract](implementation-contract.md), [research](research.md), [data model](data-model.md), [interface contracts](contracts/http-api.md), [verification map](verification.md), [quickstart](quickstart.md).
 **Created**: 2026-10-15 | **Branch**: `master` (unchanged)
-**Status**: Phases 1–8 implementation and source reviews are complete. Clean-source verification passed289 tests with zero failures/skips plus lint/typecheck/build and native Docker checks. T101 actual screen-reader field/error speech remains unverified. Phase9 final audit/publication gates are pending; other OS/architectures and deployment hardware are not execution-tested. See `docs/evidence/reproducibility.md`.
+**Status**: Phases 1–8 implementation and source review are complete. Phase 9 source audit and executable gates T113–T115 passed at final code commit e842bb5: 294 tests, zero failures/skips, lint/typecheck/build, current non-root Docker image/native/HTTP smoke on Linux/amd64. T101 actual screen-reader field/error speech and T116 public GitHub publication remain unchecked. Other OS/architectures, production deployment and target hardware remain unverified. See `docs/evidence/final-review.md` and `docs/evidence/final-verification.md`.
 **Tests**: Mandatory under C08/C10 and FR-031. Behavioral tests precede implementation; integration regressions that already pass are recorded honestly rather than forced to fail.
 **Organization**: Shared setup/foundation, then US1–US6 in specification priority order, then final delivery gates. No constitution or extensions.yml hooks are present.
 
@@ -708,7 +708,7 @@ T101 assessment has executed and recorded the unavailable actual-speech evidence
 - [x] T128 [US6] Preserve isolated surrogate code units consistently during password NFC canonicalization in `packages/auth-contract/src/password.ts` and `packages/auth-contract/test/password.test.ts`.
   After: T102 browser RED diagnostic. Check: **K128**. Coverage: FR-006, FR-026, V12.
   Expected: Identical Node/Chromium/Firefox/WebKit canonicalization and signup rejection of isolated Cs; valid supplementary pairs and canonical-equivalent strings retain the approved rules. Signin remains nonempty/max128 only and must not silently rewrite an isolated surrogate differently by runtime.
-  RED/behavior target: T102 actual Firefox157 normalization converts isolated D800/DC00 to replacement symbols despite preserving input code units, making signup accept forbidden fixtures. Add shared regression assertions before the smallest canonicalization fix; report Node regressions already green honestly.
+  RED/behavior target: T102 actual Firefox 157 normalization converts isolated D800/DC00 to replacement symbols despite preserving input code units, making signup accept forbidden fixtures. Add shared regression assertions before the smallest canonicalization fix; report Node regressions already green honestly.
   Execution refinement: Browser discovery requires a separately scoped shared production fix before T102 can close; preserve the single fixture source and do not weaken parity expectations.
 
 - [x] T131 [US6] Run each browser spec in a fresh application invocation in `scripts/run-e2e.mjs` and `package.json`.
@@ -819,15 +819,15 @@ T101 assessment has executed and recorded the unavailable actual-speech evidence
   RED/behavior target: Pinned-Node parseConfig currently accepts fc::1 and fd1::1 because normalized text starts with fc/fd; prove rejection regression before a minimal numeric first-hextet range check. Retain all existing IPv4/proxy semantics.
   Execution refinement: Recorded before coding as a separate two-file task, at most 100 added production lines. Refresh final-source evidence after this configuration correction.
 
-- [ ] T113 Run fresh lint/typecheck/production-build and built same-origin API/static smoke in `docs/evidence/build.md`.
+- [x] T113 Run fresh lint/typecheck/production-build and built same-origin API/static smoke in `docs/evidence/build.md`.
   After: T112. Check: **K113**. Coverage: FR-016, FR-030, FR-031, FR-033, V11, V17, V20.
-  Expected: Commands exit0; static SPA fallback works; /api unknown404 remains JSON; startup/secrets/native flags remain correct.
+  Expected: Commands exit 0; static SPA fallback works; /api unknown404 remains JSON; startup/secrets/native flags remain correct.
 
-- [ ] T114 Run final built browser core/Unicode/accessibility suites with pinned engines in `docs/evidence/browser.md`.
+- [x] T114 Run final built browser core/Unicode/accessibility suites with pinned engines in `docs/evidence/browser.md`.
   After: T113. Check: **K114**. Coverage: FR-006, FR-008, FR-027, FR-028, FR-031, V05, V12, V14, V15, V18.
   Expected: All mandatory browser suites execute; no protected flash, restart auth verified, Unicode parity and required interactions; optional cross-tab suite clearly deferred.
 
-- [ ] T115 Inspect actual implementation against every FR/SC/C section and classify evidence truthfully in `docs/evidence/final-review.md`.
+- [x] T115 Inspect actual implementation against every FR/SC/C section and classify evidence truthfully in `docs/evidence/final-review.md`.
   After: T113, T114. Check: **K115**. Coverage: FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, FR-010, FR-011, FR-012, FR-013, FR-014, FR-015, FR-016, FR-017, FR-018, FR-019, FR-020, FR-021, FR-022, FR-023, FR-024, FR-025, FR-026, FR-027, FR-028, FR-029, FR-030, FR-031, FR-032, FR-033, V01, V02, V03, V04, V05, V06, V07, V08, V09, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20.
   Expected: All required V01–V20 evidence inspected; implemented-and-tested / implemented-but-unverified / deferred-and-documented distinct; missing mandatory security/correctness gate blocks readiness.
 
