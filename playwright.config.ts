@@ -2,9 +2,13 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { defineConfig } from "@playwright/test";
 
 const testOrigin = "http://127.0.0.1:4173";
-const testDatabase = `easygen_e2e_${randomUUID().replaceAll("-", "")}`;
+const testRunId = randomUUID();
+const testDatabase = `easygen_e2e_${testRunId.replaceAll("-", "")}`;
+const testMongoUri = `mongodb://127.0.0.1:27017/${testDatabase}`;
 
 export default defineConfig({
+  metadata: { easygenE2eDatabase: { runId: testRunId, databaseName: testDatabase } },
+  globalTeardown: "./tests/e2e/database-cleanup.ts",
   testDir: "./tests/e2e",
   workers: 1,
   use: {
@@ -36,7 +40,7 @@ export default defineConfig({
       HOST: "127.0.0.1",
       PORT: "4173",
       SESSION_SECRET: randomBytes(32).toString("base64"),
-      MONGODB_URI: `mongodb://127.0.0.1:27017/${testDatabase}`,
+      MONGODB_URI: testMongoUri,
       TRUSTED_PROXY_CIDRS: "",
     },
   },

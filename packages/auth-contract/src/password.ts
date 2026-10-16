@@ -4,7 +4,25 @@ const punctuationOrSymbolPattern = /[\p{P}\p{S}]/u;
 const forbiddenCharacterPattern = /[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}]/u;
 
 export function canonicalizePassword(raw: string): string {
-  return raw.normalize('NFC');
+  let canonical = '';
+  let segmentStart = 0;
+  for (let index = 0; index < raw.length; index += 1) {
+    const codeUnit = raw.charCodeAt(index);
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const next = raw.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        index += 1;
+        continue;
+      }
+    } else if (codeUnit < 0xdc00 || codeUnit > 0xdfff) {
+      continue;
+    }
+
+    canonical += raw.slice(segmentStart, index).normalize('NFC');
+    canonical += raw.slice(index, index + 1);
+    segmentStart = index + 1;
+  }
+  return canonical + raw.slice(segmentStart).normalize('NFC');
 }
 
 export function codePointLength(value: string): number {

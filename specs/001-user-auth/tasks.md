@@ -2,7 +2,7 @@
 
 **Input**: `specs/001-user-auth/` — [plan](plan.md), [specification](spec.md), [binding contract](implementation-contract.md), [research](research.md), [data model](data-model.md), [interface contracts](contracts/http-api.md), [verification map](verification.md), [quickstart](quickstart.md).
 **Created**: 2026-10-15 | **Branch**: `master` (unchanged)
-**Status**: Phases 1–6 are reviewed and committed. Phase 7 implementation and source review are complete; T091–T100 and T121–T122 have observed passing evidence. T101 actual screen-reader field/error speech remains unverified and blocks that delivery claim. Docker delivery, benchmarks, clean reproduction and final publication are pending. See `docs/evidence/core-security.md` and `docs/evidence/accessibility.md`.
+**Status**: Phases 1–8 implementation and source reviews are complete. Clean-source verification passed289 tests with zero failures/skips plus lint/typecheck/build and native Docker checks. T101 actual screen-reader field/error speech remains unverified. Phase9 final audit/publication gates are pending; other OS/architectures and deployment hardware are not execution-tested. See `docs/evidence/reproducibility.md`.
 **Tests**: Mandatory under C08/C10 and FR-031. Behavioral tests precede implementation; integration regressions that already pass are recorded honestly rather than forced to fail.
 **Organization**: Shared setup/foundation, then US1–US6 in specification priority order, then final delivery gates. No constitution or extensions.yml hooks are present.
 
@@ -678,55 +678,117 @@ Playwright webServer runs the built same-origin app with explicit test origin/po
 
 **Order**: Named contract/behavior tests are written first; focused models/services/controllers/UI follow; final checkpoint records actual results.
 
+### Reproducibility prerequisites
+
+T101 assessment has executed and recorded the unavailable actual-speech evidence. Its remaining V18 claim stays open through final delivery; the following independent reproduction work does not relax it.
+
+- [x] T123 [US6] Add automatic exact-database E2E teardown in `playwright.config.ts` and `tests/e2e/database-cleanup.ts`.
+  After: T101 assessment recorded. Check: **K123**. Coverage: FR-030, FR-031, V20.
+  Expected: Passing and failing runs clean only their generated loopback `easygen_e2e_<32 lowercase hex>` database; reject caller-selected/nonlocal databases and always close the Mongo client. Never drop by broad prefix.
+  RED/behavior target: Existing E2E leaves its runner-owned database behind; execute cleanup and inspect exact database absence.
+
+- [x] T126 [US6] Verify E2E teardown guards with focused unit cases in `tests/unit/database-cleanup.test.ts`.
+  After: T123 implementation. Check: **K126**. Coverage: FR-030, FR-031, V20.
+  Expected: Exact generated metadata URI is accepted; nonlocal, mismatched and caller-selected targets fail closed; client cleanup is owned.
+  Execution deviation: The implementer added this useful third test file during T123 before requesting a split. This task records the actual scope after the fact; it does not claim the split preceded coding. T123 remains limited to its config/helper paths.
+
+- [x] T130 [US6] Include cleanup guard unit tests in the aggregate verification scripts in `package.json`.
+  After: T126, T124. Check: **K130**. Coverage: FR-030, FR-031, V20.
+  Expected: A focused `test:unit:tooling` script runs the existing Node24 cleanup test; aggregate `test:unit` and therefore `verify` execute it without accidentally running E2E files as unit tests. No new dependency is needed.
+  RED/behavior target: Source review found `verify` omitted the newly added cleanup guard test; run the focused script and aggregate unit suite after wiring.
+  Execution refinement: Added before coding after independent verification-coverage review; root package script ownership is isolated from Docker/README tasks.
+
+- [x] T124 [US6] Include root browser configuration and E2E files in strict aggregate typecheck in `tsconfig.e2e.json` and `package.json`.
+  After: T123. Check: **K124**. Coverage: FR-030, FR-031, V20.
+  Expected: Root typecheck includes Playwright config/specs/teardown with existing strict options; fix actual typing issues within separately scoped tasks if necessary.
+  RED/behavior target: Existing aggregate typecheck omits these files.
+
 ### Tests first
 
-- [ ] T102 [P] [US6] Execute shared Unicode fixtures in Chromium/Firefox/WebKit through a test-only browser module in `tests/e2e/unicode.spec.ts` and `tests/e2e/fixtures/unicode.html`.
-  After: T101. Check: **K102**. Coverage: FR-006, FR-030, FR-031, V12.
+- [x] T128 [US6] Preserve isolated surrogate code units consistently during password NFC canonicalization in `packages/auth-contract/src/password.ts` and `packages/auth-contract/test/password.test.ts`.
+  After: T102 browser RED diagnostic. Check: **K128**. Coverage: FR-006, FR-026, V12.
+  Expected: Identical Node/Chromium/Firefox/WebKit canonicalization and signup rejection of isolated Cs; valid supplementary pairs and canonical-equivalent strings retain the approved rules. Signin remains nonempty/max128 only and must not silently rewrite an isolated surrogate differently by runtime.
+  RED/behavior target: T102 actual Firefox157 normalization converts isolated D800/DC00 to replacement symbols despite preserving input code units, making signup accept forbidden fixtures. Add shared regression assertions before the smallest canonicalization fix; report Node regressions already green honestly.
+  Execution refinement: Browser discovery requires a separately scoped shared production fix before T102 can close; preserve the single fixture source and do not weaken parity expectations.
+
+- [x] T131 [US6] Run each browser spec in a fresh application invocation in `scripts/run-e2e.mjs` and `package.json`.
+  After: T130, T102 combined-run failure. Check: **K131**. Coverage: FR-017, FR-030, FR-031, V09, V20.
+  Expected: Discover all E2E spec files and execute every selected browser project for each spec through a separate Playwright invocation, with normal server startup, limiter state and exact-database teardown. Propagate failure immediately and preserve output; never weaken limits, skip a spec, retry POSTs or mock the real auth checks. Root test:e2e/verify use the runner.
+  RED/behavior target: Combined 24-case invocation passed23 and failed final WebKit Unicode signup with429 because6 total real signups shared the production5/15min route limit. Individual suites fit the approved limit.
+  Execution refinement: Split the runner before coding; all test scenarios still execute, with independent suite fixtures and unchanged security policy.
+
+- [x] T102 [P] [US6] Execute shared Unicode fixtures in Chromium/Firefox/WebKit through a test-only browser module in `tests/e2e/unicode.spec.ts` and `tests/e2e/fixtures/unicode.html`.
+  After: T123, T124; T101 assessment recorded. Check: **K102**. Coverage: FR-006, FR-030, FR-031, V12.
   Expected: Use Playwright route.fulfill for test-only HTML and actual built shared password.js; iterate the one shared Unicode fixture source, never copied predicates; record browser/Node/ICU versions plus canonical-equivalent auth.
   RED/behavior target: Browser parity is unverified until executed; fixture is never exposed by production auth routes.
 
-- [ ] T103 [P] [US6] Write deterministic benchmark statistics/report-shape tests in `apps/api/test/benchmark-hash.test.ts`.
-  After: T101. Check: **K103**. Coverage: FR-032, V19.
+- [x] T103 [P] [US6] Write deterministic benchmark statistics/report-shape tests in `apps/api/test/benchmark-hash.test.ts`.
+  After: T101 assessment recorded. Check: **K103**. Coverage: FR-032, V19.
   Expected: Known samples produce defined p50/p95/max; one/two-active reports separate service/admission latency, RSS/runtime and target status; import does not auto-run benchmark.
   RED/behavior target: Benchmark reporter entry/statistics are missing.
 
 
 ### Implementation and integration
 
-- [ ] T104 [US6] Implement compiled hash benchmark and sample summarization using the production hash gate/profile in `apps/api/src/benchmark-hash.ts`.
+- [x] T104 [US6] Implement pure benchmark statistics/report construction in `apps/api/src/benchmark-hash-report.ts`.
   After: T103. Check: **K104**. Coverage: FR-018, FR-032, V13, V19.
-  Expected: Warmup then at least100 samples each at1/2 active; baseline/peak process RSS, latencies, throughput, native/runtime/CPU/limits; --stdout mode, no DB dependency.
+  Expected: Deterministic p50/p95/max, separate service/admission metrics, RSS/runtime/CPU/limit metadata and explicit target status; no benchmark side effect on import.
+  RED/behavior target: T103.
+  Execution refinement: Split reporting and native sampling before implementation to keep each task at two files/100 production lines.
+
+- [x] T127 [US6] Parse benchmark cgroup resource observations in `apps/api/src/benchmark-hash-limits.ts` and `apps/api/test/benchmark-hash-limits.test.ts`.
+  After: T104. Check: **K127**. Coverage: FR-032, FR-033, V19.
+  Expected: Deterministic limited/unlimited/unavailable CPU and memory states; unavailable files or invalid observations never masquerade as no resource limit. Resource helper is inert and does not require Mongo.
+  RED/behavior target: New helper/statistics tests before helper implementation.
+  Execution refinement: Split before coding from CLI resource parsing to keep readable code within each two-file/100-production-line task cap.
+
+- [x] T125 [US6] Implement compiled native sampling CLI with the production hash gate/profile in `apps/api/src/benchmark-hash.ts`.
+  After: T104, T127. Check: **K125**. Coverage: FR-018, FR-032, V13, V19.
+  Expected: Warmup then at least100 samples each at1/2 active; baseline/peak RSS, separate service/admission timing, throughput and runtime/CPU/limits; --stdout, no Mongo dependency, inert import. Split another helper task before coding if the 100-production-line cap cannot hold.
   RED/behavior target: T103.
 
-- [ ] T105 [US6] Run native hash benchmark and record actual raw/summarized observations with queue outcomes in `docs/evidence/hash-benchmark.json`.
-  After: T104, T102. Check: **K105**. Coverage: FR-018, FR-032, FR-033, V13, V19.
+- [x] T105 [US6] Run native hash benchmark and record actual raw/summarized observations with queue outcomes in `docs/evidence/hash-benchmark.json`.
+  After: T104, T125, T102. Check: **K105**. Coverage: FR-018, FR-032, FR-033, V13, V19.
   Expected: Record measured p95/memory and queue saturation/1000ms behavior; development result not target proof; target-unavailable explicit, no assumed<500ms.
 
-- [ ] T106 [US6] Build digest-pinned multi-stage production image and exclude secrets/tests/browser tooling in `Dockerfile` and `.dockerignore`.
+- [x] T106 [US6] Build digest-pinned multi-stage production image and exclude secrets/tests/browser tooling in `Dockerfile` and `.dockerignore`.
   After: T105. Check: **K106**. Coverage: FR-016, FR-030, FR-033, V11, V17, V20.
   Expected: Non-root one Node process serves built SPA/API; shared outputs/runtime/native Argon2+compiled benchmark included; Mongo separate; default private host preserved.
 
-- [ ] T107 [US6] Run image/native-loading and resource-constrained benchmark smoke and record actual scope in `docs/evidence/container.md`.
-  After: T106. Check: **K107**. Coverage: FR-016, FR-032, FR-033, V11, V17, V19.
+- [x] T129 [US6] Add a host-portable local Docker application workflow in `compose.app.yaml` and `.env.example`.
+  After: T106. Check: **K129**. Coverage: FR-016, FR-030, FR-033, V11, V20.
+  Expected: Standard Compose builds/runs the application and a separate private Mongo service without host Node or Linux-only host networking; app binds an explicit private bridge interface and publishes only loopback HTTP for local development. SESSION_SECRET is required with no usable default. Local HTTP uses the documented development cookie policy; production HTTPS/proxy remains a separate contract. Preserve existing development Mongo volume/service and document any subnet conflict adjustment.
+  RED/behavior target: No complete application Compose workflow exists; build, readiness and actual built SPA/API authentication smoke must execute before claiming this task.
+  Execution refinement: Added before coding to satisfy the user's Docker portability requirement without weakening private HOST validation. Actual untested host OS/architecture coverage remains unverified.
+
+- [x] T107 [US6] Run image/native-loading and resource-constrained benchmark smoke and record actual scope in `docs/evidence/container.md`.
+  After: T106, T129. Check: **K107**. Coverage: FR-016, FR-032, FR-033, V11, V17, V19.
   Expected: Native module loads in pinned image; resource/latency/RSS observed honestly; local constrained container is not deployment CPU proof; private ingress smoke uses separate Mongo.
 
-- [ ] T108 [US6] Write clean-checkout setup/config/startup/verification instructions matching actual scripts in `README.md`.
-  After: T107. Check: **K108**. Coverage: FR-016, FR-030, FR-031, V11, V20.
+- [x] T108 [US6] Write clean-checkout setup/config/startup/verification instructions matching actual scripts in `README.md`.
+  After: T107 observations recorded; any remaining private-ingress verification gap must stay explicit until resolved. Check: **K108**. Coverage: FR-016, FR-030, FR-031, V11, V20.
   Expected: Document exact runtime/env/secret generation/index readiness, safe local DB and Vite proxy, start commands and all required checks; no skipped-integration green claim.
+  Execution refinement: Within Phase 8, documentation may proceed from actual image/benchmark observations while host-network diagnostics continue; this changes scheduling only, never the required T107 private-ingress delivery gate.
 
-- [ ] T109 [US6] Document credentials/sessions/origin/proxy/duplicate and partial-failure retry semantics in `README.md`.
+- [x] T109 [US6] Document credentials/sessions/origin/proxy/duplicate and partial-failure retry semantics in `README.md`.
   After: T108. Check: **K109**. Coverage: FR-007, FR-010, FR-012, FR-014, FR-015, FR-026, FR-030, V20.
   Expected: C14 topics: NFC/code points/Unicode limits, enumeration409, indexed uniqueness, lost signup/keep-account/signin recovery, idle/absolute/cookie lifecycle, observed anonymity versus invalidation.
 
-- [ ] T110 [US6] Document actual benchmark/capacity observations, unknown/cross-tab limits and deferred operations in `README.md`.
+- [x] T110 [US6] Document actual benchmark/capacity observations, unknown/cross-tab limits and deferred operations in `README.md`.
   After: T109. Check: **K110**. Coverage: FR-018, FR-023, FR-024, FR-025, FR-030, FR-032, FR-033, V19, V20.
   Expected: Explicit single-instance limits/Redis omission/distributed changes; older-server-work caveat; actual observations/target status; backups/monitoring/redundancy/email verification/recovery deferred.
 
-- [ ] T111 [US6] Update AI disclosure with actual implementation assistance, effective prompts, corrections and verification outcomes in `AI.md`.
+- [x] T111 [US6] Update AI disclosure with actual implementation assistance, effective prompts, corrections and verification outcomes in `AI.md`.
   After: T110. Check: **K111**. Coverage: FR-030, FR-031, V20.
   Expected: Record real refinements including pinned-session-source correction and results; no invented rejected suggestions, tests, performance or publication.
 
-- [ ] T112 [US6] Validate the quickstart from an isolated clean source snapshot and record exact commands/results in `docs/evidence/reproducibility.md`.
+- [x] T132 [US6] Establish shared declarations before standalone typed checks in `package.json`.
+  After: T112 clean-snapshot RED diagnosis. Check: **K132**. Coverage: FR-030, FR-031, V20.
+  Expected: `prelint` and `pretypecheck` build the shared workspace before typed checks resolve its package exports. Both advertised commands work after fresh npm ci with no existing dist; production dependency installation remains free of a TypeScript prepare hook. Lint/type rules and test coverage remain unchanged.
+  RED/behavior target: Fresh archive npm ci leaves shared dist absent; verify failed first eslint step with210 error-typed diagnostics. Building only shared declarations made lint and typecheck pass, confirming the hidden output dependency.
+  Execution refinement: Added before coding after the clean-source reproduction gate exposed the missing prerequisite; final T112 must use a refreshed source snapshot with fresh install/output.
+
+- [x] T112 [US6] Validate the quickstart from an isolated clean source snapshot and record exact commands/results in `docs/evidence/reproducibility.md`.
   After: T111. Check: **K112**. Coverage: FR-030, FR-031, FR-033, V11, V20.
   Expected: Source snapshot includes intended app/config assets, no secrets; all mandatory dependencies/suites actually run; docs steps work without hidden workstation state.
 
@@ -870,16 +932,26 @@ Run from repository root under the selected runtime. K-number matches T-number. 
 | K099 | `npm run build && npx playwright test tests/e2e/accessibility.spec.ts -g 'accessibility: layout'` |
 | K100 | `npm run build && npx playwright test tests/e2e/accessibility.spec.ts` |
 | K101 | `npm run build && npx playwright test tests/e2e/accessibility.spec.ts` |
+| K131 | `npm run build && node scripts/run-e2e.mjs` in the pinned three-browser environment, plus exact runner-database absence inspection |
+| K130 | `npm run test:unit:tooling && npm run test:unit` |
+| K126 | `node --test tests/unit/database-cleanup.test.ts` |
+| K123 | `npx playwright test tests/e2e/auth.spec.ts --project=chromium` plus exact runner-database absence inspection after success/failure |
+| K124 | `npm run typecheck` |
+| K127 | `npm run build:test:api -- apps/api/test/benchmark-hash-limits.test.ts && node --test apps/api/dist-test/targets/benchmark-hash-limits.test/test/benchmark-hash-limits.test.js` |
+| K125 | `npm run build:api && npm run benchmark:hash -- --stdout` |
+| K128 | `npm run test:unit --workspace @easygen/auth-contract && npm run build` followed by K102 all-three-engine parity |
 | K102 | `npm run build && npx playwright test tests/e2e/unicode.spec.ts -g 'unicode:'` |
 | K103 | `npm run build:test:api -- apps/api/test/benchmark-hash.test.ts && node --test --test-name-pattern='benchmark:' apps/api/dist-test/targets/benchmark-hash.test/test/benchmark-hash.test.js` |
 | K104 | `npm run build:test:api -- apps/api/test/benchmark-hash.test.ts && node --test --test-name-pattern='benchmark:' apps/api/dist-test/targets/benchmark-hash.test/test/benchmark-hash.test.js` |
 | K105 | `npm run build:api && npm run benchmark:hash` |
 | K106 | `docker build -t easygen-auth:assessment .` |
-| K107 | `docker run --rm --cpus=1 --memory=512m easygen-auth:assessment npm run benchmark:hash -- --stdout` |
+| K129 | `docker compose -f compose.app.yaml config --quiet` with generated local secret, then `docker compose -f compose.app.yaml up --build --wait` and built SPA/API smoke; exact commands in container evidence |
+| K107 | `docker run --rm --cpus=1 --memory=512m easygen-auth:assessment npm run benchmark:hash -- --stdout` plus private-bridge app/separate-Mongo ingress smoke; exact repeatable commands in `docs/evidence/container.md` |
 | K108 | `npm run typecheck && npm run lint && npm run build` |
 | K109 | `npm run test:integration && npm run test:unit --workspace @easygen/auth-contract` |
 | K110 | `npm run benchmark:hash` |
 | K111 | `git diff -- AI.md` |
+| K132 | `npm run lint && npm run typecheck` in the refreshed clean source after fresh `npm ci`, with no pre-existing shared dist |
 | K112 | `npm ci && npm run db:up && npm run verify` |
 | K113 | `npm run lint && npm run typecheck && npm run build` |
 | K114 | `npm run test:e2e` |
@@ -1051,7 +1123,7 @@ No Redis, Web Locks/BroadcastChannel ordering, idempotency platform, distributed
 
 ## Generated summary
 
-**Total**: 116 tasks. **Parallel-marked**: 43 tasks in 15 bounded cohorts.
+**Generated baseline**: 116 tasks; execution refinements T117–T132 bring the current total to132. Baseline parallel marking:43 tasks in15 bounded cohorts. Supplemental splits/dependencies are recorded beside each added task.
 
 | Group | Tasks |
 | --- | --- |

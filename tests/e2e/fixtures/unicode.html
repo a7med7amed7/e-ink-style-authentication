@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Unicode password fixture</title>
+</head>
+<body>
+  <output data-testid="password-module-ready">loading</output>
+  <script type="module">
+    import * as password from '/__e2e__/password.js';
+
+    window.authPassword = password;
+    document.querySelector('[data-testid="password-module-ready"]').textContent = 'ready';
+  </script>
+</body>
+</html>

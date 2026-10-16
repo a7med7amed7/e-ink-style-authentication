@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "noEmit": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["playwright.config.ts", "tests/e2e/**/*.ts", "tests/unit/**/*.ts"],
+  "exclude": ["node_modules", "apps/**/dist", "apps/**/dist-test"]
+}

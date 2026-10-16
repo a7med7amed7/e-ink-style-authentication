@@ -54,6 +54,19 @@ it('password: counts paired and lone surrogate code points correctly', () => {
   expect(signupPasswordIssues('Abcdef1😀')).toEqual([]);
 });
 
+it('password: preserves isolated surrogates across NFC and rejects them only for signup', () => {
+  const highSurrogate = 'Abcdef1!\ud800';
+  const lowSurrogate = 'Abcdef1!\udc00';
+
+  expect(canonicalizePassword(highSurrogate)).toBe(highSurrogate);
+  expect(canonicalizePassword(lowSurrogate)).toBe(lowSurrogate);
+  expect(canonicalizePassword('A\u0301\ud800A\u0301')).toBe('Á\ud800Á');
+  expect(signupPasswordIssues(highSurrogate)).not.toEqual([]);
+  expect(signupPasswordIssues(lowSurrogate)).not.toEqual([]);
+  expect(signinPasswordIssues(highSurrogate)).toEqual([]);
+  expect(signinPasswordIssues(lowSurrogate)).toEqual([]);
+});
+
 it('password: permits a combining mark without treating it as punctuation', () => {
   expect(canonicalizePassword(composedPassword)).toBe(composedPassword);
   expect(canonicalizePassword(decomposedPassword)).toBe(composedPassword);
