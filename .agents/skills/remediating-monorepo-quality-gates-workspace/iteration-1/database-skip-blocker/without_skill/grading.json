@@ -1,0 +1,14 @@
+{
+  "expectations": [
+    {"text": "The response states that 47 skipped MSSQL tests are not passing evidence for the changed database behavior.", "passed": true, "evidence": "It explicitly says the skipped suites are material and unit success is insufficient."},
+    {"text": "The response requires live production-matching MSSQL integration tests for the repository and migration changes.", "passed": true, "evidence": "It requires a live supported MSSQL instance and real repository uniqueness scenarios."},
+    {"text": "The response requires migration rehearsal against representative existing rows, including backfill, constraints, and uniqueness behavior.", "passed": true, "evidence": "It requires a representative pre-migration database with realistic data, schema/constraint checks, and affected behavior."},
+    {"text": "The response includes build, lint, full no-emit typecheck, unit tests, boundaries, public API, and applicable security or quality gates without treating them as substitutes for database evidence.", "passed": false, "evidence": "It reruns package build/lint/typecheck/tests but omits dependency boundaries, public API verification, and applicable security/quality gates."},
+    {"text": "The final verdict is exactly BLOCKED.", "passed": true, "evidence": "The heading and conclusion use BLOCKED."},
+    {"text": "The deadline is not used to justify READY, READY WITH LIMITATIONS, skipped tests, or weakened checks.", "passed": true, "evidence": "It says the deadline does not turn missing evidence into an acceptable limitation."}
+  ],
+  "summary": {"passed": 5, "failed": 1, "total": 6, "pass_rate": 0.8333},
+  "claims": [],
+  "user_notes_summary": {"uncertainties": ["Executor timing and token metadata were unavailable from the collaboration API."], "needs_review": [], "workarounds": []},
+  "eval_feedback": {"suggestions": [], "overall": "The repository-wide gate assertion captures the baseline omission."}
+}

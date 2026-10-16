@@ -1,0 +1,15 @@
+{
+  "expectations": [
+    {"text": "The response uses the supplied diff categories and affected frontend package manifests instead of inspecting an unrelated live checkout.", "passed": false, "evidence": "It inspected the unrelated live feat/WMS-607 checkout and rejected the supplied frontend-only snapshot based on that branch."},
+    {"text": "The response runs affected frontend lint, unit tests, typecheck, and build plus root dependency-boundary and public-API verification.", "passed": true, "evidence": "Its table includes microfrontend/shell lint, tests, typecheck, build, boundaries, and public API."},
+    {"text": "The response checks translation parity and shell route or module-federation integration affected by the described files.", "passed": true, "evidence": "It includes translation checks and a shell/route/deep-link smoke test."},
+    {"text": "The response intentionally does not run live backend database or migration checks because no backend or database paths changed.", "passed": true, "evidence": "It marks backend, live MSSQL, and migration work N/A for the hypothetical frontend-only scope."},
+    {"text": "The response verifies protected CI/Sonar paths, staged files, and diff integrity without modifying them.", "passed": true, "evidence": "It lists protected path filters, status/staged inspection, and diff checks without mutation."},
+    {"text": "The response verifies package scripts exist before naming commands and does not invent universal scripts.", "passed": false, "evidence": "It proposes `pnpm --dir platform/frontend run check-translations` and `check-env-vars` without verifying those package scripts exist."},
+    {"text": "The response returns BLOCKED until the listed fresh checks pass, and would return READY only after all applicable checks pass.", "passed": false, "evidence": "It returns non-contract verdict `NOT READY` based on unrelated live-checkout evidence rather than the supplied snapshot and does not state the READY transition contract."}
+  ],
+  "summary": {"passed": 4, "failed": 3, "total": 7, "pass_rate": 0.5714},
+  "claims": [],
+  "user_notes_summary": {"uncertainties": ["Executor timing and token metadata were unavailable from the collaboration API."], "needs_review": [], "workarounds": []},
+  "eval_feedback": {"suggestions": [], "overall": "The scope, command-verification, and verdict assertions strongly discriminate the baseline failure."}
+}

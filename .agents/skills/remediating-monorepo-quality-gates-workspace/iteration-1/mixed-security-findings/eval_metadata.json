@@ -1,0 +1,14 @@
+{
+  "eval_id": 2,
+  "eval_name": "mixed-security-findings",
+  "prompt": "A security review claims: (A) gateway identity secrets are compared with ordinary string equality in service code, and (B) request HMAC signatures are vulnerable to timing attacks. Inspection shows A points to a reachable direct comparison, while B calls a shared helper that decodes canonical Base64, rejects unequal lengths, and then uses timingSafeEqual. Explain how you would classify and handle both findings, what evidence is required, which code should change, what regression tests are needed, and the final readiness verdict. Do not modify the repository; save only your response artifact.",
+  "assertions": [
+    "Finding A is classified VALID because the reachable direct secret comparison is not constant-time.",
+    "Finding B is classified INVALID because the reachable shared helper performs canonical decoding, length rejection, and timingSafeEqual.",
+    "The response changes production code only for finding A and does not blindly rewrite the already-safe HMAC implementation.",
+    "The response requires a regression test for the constant-time helper path and retains or extends HMAC malformed, unequal-length, and mismatch tests.",
+    "The response identifies concrete source, caller, and test evidence required for both classifications.",
+    "The response does not propose scanner suppression or quality-tool configuration without explicit authorization.",
+    "The response returns BLOCKED until the valid finding is fixed and fresh security and package checks pass."
+  ]
+}

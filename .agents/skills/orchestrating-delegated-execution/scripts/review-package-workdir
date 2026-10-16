@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Build a working-tree review package without requiring commits.
+# Usage: review-package-workdir BASE_SHA [path ...]
+# Prints the path of the written package file.
+
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+  echo "usage: $0 BASE_SHA [path ...]" >&2
+  exit 2
+fi
+
+BASE_SHA="$1"
+shift
+
+ROOT="$(git rev-parse --show-toplevel)"
+OUT_DIR="${ROOT}/.superpowers/delegated-execution/packages"
+mkdir -p "${OUT_DIR}"
+
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+SHORT="$(git rev-parse --short "${BASE_SHA}")"
+OUT="${OUT_DIR}/review-${SHORT}-${STAMP}.md"
+
+{
+  echo "# Working-tree review package"
+  echo
+  echo "- Base: \`${BASE_SHA}\`"
+  echo "- Head (HEAD ref): \`$(git rev-parse HEAD)\`"
+  echo "- Generated (UTC): ${STAMP}"
+  echo "- Note: includes unstaged and staged worktree changes; agents must not commit."
+  echo
+  echo "## Status"
+  echo
+  echo '```'
+  git status --short
+  echo '```'
+  echo
+  echo "## Diff stat"
+  echo
+  echo '```'
+  if [[ $# -gt 0 ]]; then
+    git diff --stat "${BASE_SHA}" -- "$@"
+  else
+    git diff --stat "${BASE_SHA}"
+  fi
+  echo '```'
+  echo
+  echo "## Full diff"
+  echo
+  echo '```diff'
+  if [[ $# -gt 0 ]]; then
+    git diff "${BASE_SHA}" -- "$@"
+  else
+    git diff "${BASE_SHA}"
+  fi
+  echo '```'
+} > "${OUT}"
+
+echo "${OUT}"

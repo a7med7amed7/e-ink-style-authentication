@@ -1,0 +1,63 @@
+{
+  "skill_name": "remediating-monorepo-quality-gates",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "A GitLab MR pipeline fails because new-code coverage is 84% against a 90% threshold and Semgrep flags createCipheriv('aes-256-gcm', key, iv) for missing an explicit authTagLength. The branch is already late and a teammate says to lower the threshold or exclude the whole service from coverage. Explain exactly how you would validate and fix the failures, what you would and would not edit, which checks you would rerun, and your final readiness verdict. Treat this as a supplied evaluation snapshot: do not inspect or modify another checkout; save only the response artifact.",
+      "expected_output": "An evidence-based blocked verdict, narrow source/test remediation, exact gate reproduction, and no unauthorized quality-system workaround.",
+      "files": [],
+      "expectations": [
+        "The response treats both reported failures as evidence to reproduce and validate before editing code.",
+        "The response explicitly rejects lowering the shared coverage threshold, broad runtime coverage exclusions, allow-failure switches, and central SonarQube or CI changes without authorization.",
+        "The response proposes an explicit AES-GCM authTagLength fix with focused regression coverage and does not hide the Semgrep finding.",
+        "The response proposes coverage gains through meaningful tests or exclusions limited to proven generated/test-only helpers.",
+        "The response reruns the original MR quality gate, Semgrep, and relevant package lint, build, typecheck, and tests.",
+        "The response returns BLOCKED until the fixes are implemented and every required fresh check passes."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "A security review claims: (A) gateway identity secrets are compared with ordinary string equality in service code, and (B) request HMAC signatures are vulnerable to timing attacks. Inspection shows A points to a reachable direct comparison, while B calls a shared helper that decodes canonical Base64, rejects unequal lengths, and then uses timingSafeEqual. Explain how you would classify and handle both findings, what evidence is required, which code should change, what regression tests are needed, and the final readiness verdict. Treat this as a supplied evaluation snapshot: do not inspect or modify another checkout; save only the response artifact.",
+      "expected_output": "Finding A is valid and blocks readiness; finding B is invalid for the resolved path and receives no production rewrite or unauthorized scanner suppression.",
+      "files": [],
+      "expectations": [
+        "Finding A is classified VALID because the reachable direct secret comparison is not constant-time.",
+        "Finding B is classified INVALID because the reachable shared helper performs canonical decoding, length rejection, and timingSafeEqual.",
+        "The response changes production code only for finding A and does not blindly rewrite the already-safe HMAC implementation.",
+        "The response requires a regression test for the constant-time helper path and retains or extends HMAC malformed, unequal-length, and mismatch tests.",
+        "The response identifies concrete source, caller, and test evidence required for both classifications.",
+        "The response does not propose scanner suppression or quality-tool configuration without explicit authorization.",
+        "The response returns BLOCKED until the valid finding is fixed and fresh security and package checks pass."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Before pushing, a backend diff changes a Drizzle MSSQL migration, a repository uniqueness rule, and related unit tests. Build, lint, typecheck, and 340 unit tests pass, but the output says 47 MSSQL tests skipped because no live database is available. The deadline is in 20 minutes. State the checks that still matter, whether migration rehearsal is required, and return one verdict: READY, READY WITH LIMITATIONS, or BLOCKED. Treat this as a supplied evaluation snapshot: do not inspect or modify another checkout; save only the response artifact.",
+      "expected_output": "A BLOCKED verdict requiring live MSSQL tests, representative-data migration rehearsal, and both package and repository gates.",
+      "files": [],
+      "expectations": [
+        "The response states that 47 skipped MSSQL tests are not passing evidence for the changed database behavior.",
+        "The response requires live production-matching MSSQL integration tests for the repository and migration changes.",
+        "The response requires migration rehearsal against representative existing rows, including backfill, constraints, and uniqueness behavior.",
+        "The response includes build, lint, full no-emit typecheck, unit tests, boundaries, public API, and applicable security or quality gates without treating them as substitutes for database evidence.",
+        "The final verdict is exactly BLOCKED.",
+        "The deadline is not used to justify READY, READY WITH LIMITATIONS, skipped tests, or weakened checks."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "A pre-push diff only changes a React microfrontend, shell route registration, translations, and a frontend public API gateway file. There are no backend, schema, migration, security, CI, or deployment changes. Explain how you determine scope, list the checks you would run and those you would intentionally not run, verify protected paths and staging state, and return one readiness verdict. Treat this as a supplied evaluation snapshot: do not inspect or modify another checkout; save only the response artifact.",
+      "expected_output": "A scoped frontend plan using verified package scripts and repository gates, excluding live backend database work, with BLOCKED until fresh checks run.",
+      "files": [],
+      "expectations": [
+        "The response uses the supplied diff categories and affected frontend package manifests instead of inspecting an unrelated live checkout.",
+        "The response runs affected frontend lint, unit tests, typecheck, and build plus root dependency-boundary and public-API verification.",
+        "The response checks translation parity and shell route or module-federation integration affected by the described files.",
+        "The response intentionally does not run live backend database or migration checks because no backend or database paths changed.",
+        "The response verifies protected CI/Sonar paths, staged files, and diff integrity without modifying them.",
+        "The response verifies package scripts exist before naming commands and does not invent universal scripts.",
+        "The response returns BLOCKED until the listed fresh checks pass, and would return READY only after all applicable checks pass."
+      ]
+    }
+  ]
+}

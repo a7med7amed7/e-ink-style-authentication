@@ -1,0 +1,15 @@
+{
+  "expectations": [
+    {"text": "The response uses the supplied diff categories and affected frontend package manifests instead of inspecting an unrelated live checkout.", "passed": true, "evidence": "It classifies the supplied snapshot and says package identities/scripts must come from the affected manifests in the real run."},
+    {"text": "The response runs affected frontend lint, unit tests, typecheck, and build plus root dependency-boundary and public-API verification.", "passed": true, "evidence": "The check table covers the microfrontend, shell, any third package, boundaries, and public API."},
+    {"text": "The response checks translation parity and shell route or module-federation integration affected by the described files.", "passed": true, "evidence": "It triggers translation parity and focused route/lazy-import/export consumer behavior."},
+    {"text": "The response intentionally does not run live backend database or migration checks because no backend or database paths changed.", "passed": true, "evidence": "The Not run table marks backend DB and migration gates path-based N/A."},
+    {"text": "The response verifies protected CI/Sonar paths, staged files, and diff integrity without modifying them.", "passed": true, "evidence": "The Integrity section requires protected-path, staging, and diff checks and explicitly forbids mutation."},
+    {"text": "The response verifies package scripts exist before naming commands and does not invent universal scripts.", "passed": true, "evidence": "It repeatedly requires reading nearest package.json and uses conditional command patterns only when scripts exist."},
+    {"text": "The response returns BLOCKED until the listed fresh checks pass, and would return READY only after all applicable checks pass.", "passed": true, "evidence": "The verdict is BLOCKED and the rationale explicitly defines the later READY transition."}
+  ],
+  "summary": {"passed": 7, "failed": 0, "total": 7, "pass_rate": 1.0},
+  "claims": [],
+  "user_notes_summary": {"uncertainties": ["Executor timing and token metadata were unavailable from the collaboration API."], "needs_review": [], "workarounds": []},
+  "eval_feedback": {"suggestions": [], "overall": "Assertions are substantive and all pass."}
+}

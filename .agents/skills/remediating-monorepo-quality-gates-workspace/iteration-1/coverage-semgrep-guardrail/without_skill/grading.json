@@ -1,0 +1,14 @@
+{
+  "expectations": [
+    {"text": "The response treats both reported failures as evidence to reproduce and validate before editing code.", "passed": true, "evidence": "The response opens by requiring the CI artifacts, real base/head, current LCOV, and exact Semgrep occurrence before edits."},
+    {"text": "The response explicitly rejects lowering the shared coverage threshold, broad runtime coverage exclusions, allow-failure switches, and central SonarQube or CI changes without authorization.", "passed": true, "evidence": "It rejects lowering 90%, allow-failure, disabling Semgrep, service exclusions, rule-set changes, and suppressions."},
+    {"text": "The response proposes an explicit AES-GCM authTagLength fix with focused regression coverage and does not hide the Semgrep finding.", "passed": true, "evidence": "It proposes createCipheriv(..., { authTagLength: AUTH_TAG_BYTES }) and focused envelope tests."},
+    {"text": "The response proposes coverage gains through meaningful tests or exclusions limited to proven generated/test-only helpers.", "passed": true, "evidence": "It requires behavior assertions mapped to uncovered lines and rejects coverage-only tests, ignore comments, and broad exclusions."},
+    {"text": "The response reruns the original MR quality gate, Semgrep, and relevant package lint, build, typecheck, and tests.", "passed": false, "evidence": "It lists package lint, build, and tests plus both gates, but does not require a separate full no-emit typecheck; relying on build is not the required typecheck evidence."},
+    {"text": "The response returns BLOCKED until the fixes are implemented and every required fresh check passes.", "passed": true, "evidence": "The final decision is BLOCKED and conditions readiness on fresh local and remote gate evidence."}
+  ],
+  "summary": {"passed": 5, "failed": 1, "total": 6, "pass_rate": 0.8333},
+  "claims": [],
+  "user_notes_summary": {"uncertainties": ["Executor timing and token metadata were unavailable from the collaboration API."], "needs_review": [], "workarounds": []},
+  "eval_feedback": {"suggestions": [], "overall": "The typecheck assertion discriminates baseline from the complete readiness matrix."}
+}

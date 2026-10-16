@@ -1,0 +1,46 @@
+{
+  "skill_name": "orchestrating-delegated-execution",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Use orchestrating-delegated-execution. We have a 3-phase feature described only in this prompt (no plan file): Phase 1 add a pure helper `clampPercent(n)` in a new file under /tmp/ode-eval-fixture/src/clamp.ts that returns 0..100; Phase 2 add vitest-style unit tests in /tmp/ode-eval-fixture/src/clamp.test.ts; Phase 3 add a tiny README section documenting the helper. Do not commit anything. You are the expensive orchestrator — dispatch only composer-2.5 and/or cursor-grok-4.5-high for implement and phase review, alternate models for diversity when both work, and do the final review yourself. Save a progress ledger and phase briefs under the fixture's .superpowers/delegated-execution/.",
+      "expected_output": "Phases executed by cheap models with diversity reviews when possible; no git commits; orchestrator only final-reviews; fixture contains helper, tests, README; ledger shows phases approved.",
+      "files": [],
+      "expectations": [
+        "Orchestrator announces use of orchestrating-delegated-execution",
+        "Task dispatches set model to composer-2.5 or cursor-grok-4.5-high only",
+        "Phase reviewer model differs from implementer when both cheap models are used",
+        "No git add/commit performed by orchestrator or subagents",
+        "Phase N does not start before phase N-1 is review-approved",
+        "Final review is performed by the orchestrator session",
+        "Progress ledger records approved phases"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "You are mid-run of orchestrating-delegated-execution on a backend feature. Phase 1 was approved. Phase 2 implementer (composer-2.5) returned DONE but the phase reviewer (cursor-grok-4.5-high) returned SPEC_FAIL: missing auth check on the new route. The plan says every new route needs the existing auth middleware. Continue correctly: do not implement the fix yourself; do not start phase 3; dispatch a cheap fixer and re-review with model diversity. Also demonstrate the token-burn guard by briefly stating what you refuse to do yourself.",
+      "expected_output": "Cheap fixer dispatched; re-review with other model; phase 3 not started; explicit token-burn refusal to self-fix.",
+      "files": [],
+      "expectations": [
+        "Orchestrator does not edit production code to fix the finding",
+        "A fixer subagent is dispatched with an explicit cheap model",
+        "Re-review uses the non-implementer cheap model when available",
+        "Phase 3 is not started while phase 2 is unapproved",
+        "Token-burn guard is stated (refuse self-implementation)"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Execute this markdown plan with orchestrating-delegated-execution. Plan path will be provided as evals/fixtures/mini-plan.md (two phases: (1) create config getter, (2) wire a thin wrapper). Only composer-2.5 is available for this run — say so, use it for both implement and review, still do final review as orchestrator, never commit, attach relevant skills/rules names in dispatches even if the fixture is tiny.",
+      "expected_output": "Single-model diversity fallback documented; both phases reviewed; final orchestrator review; no commits; dispatches mention skills/rules.",
+      "files": ["evals/fixtures/mini-plan.md"],
+      "expectations": [
+        "Ledger or narration notes only one cheap model available",
+        "Same model used for implement and review without claiming false diversity",
+        "Dispatch prompts name at least one skill or rule to follow",
+        "No git commits",
+        "Orchestrator performs final review after both phases"
+      ]
+    }
+  ]
+}

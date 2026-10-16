@@ -1,0 +1,14 @@
+{
+  "eval_id": 4,
+  "eval_name": "frontend-scope",
+  "prompt": "A pre-push diff only changes a React microfrontend, shell route registration, translations, and a frontend public API gateway file. There are no backend, schema, migration, security, CI, or deployment changes. Explain how you determine scope, list the checks you would run and those you would intentionally not run, verify protected paths and staging state, and return one readiness verdict. Do not modify the repository; save only your response artifact.",
+  "assertions": [
+    "The response uses the supplied diff categories and affected frontend package manifests instead of inspecting an unrelated live checkout.",
+    "The response runs affected frontend lint, unit tests, typecheck, and build plus root dependency-boundary and public-API verification.",
+    "The response checks translation parity and shell route or module-federation integration affected by the described files.",
+    "The response intentionally does not run live backend database or migration checks because no backend or database paths changed.",
+    "The response verifies protected CI/Sonar paths, staged files, and diff integrity without modifying them.",
+    "The response verifies package scripts exist before naming commands and does not invent universal scripts.",
+    "The response returns BLOCKED until the listed fresh checks pass, and would return READY only after all applicable checks pass."
+  ]
+}

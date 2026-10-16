@@ -1,0 +1,15 @@
+{
+  "expectations": [
+    {"text": "Finding A is classified VALID because the reachable direct secret comparison is not constant-time.", "passed": true, "evidence": "The response calls A a confirmed actionable finding and traces reachable ordinary equality."},
+    {"text": "Finding B is classified INVALID because the reachable shared helper performs canonical decoding, length rejection, and timingSafeEqual.", "passed": true, "evidence": "It calls B a false positive and documents all three safeguards."},
+    {"text": "The response changes production code only for finding A and does not blindly rewrite the already-safe HMAC implementation.", "passed": true, "evidence": "It scopes production changes to gateway-secret comparisons and says no HMAC production change."},
+    {"text": "The response requires a regression test for the constant-time helper path and retains or extends HMAC malformed, unequal-length, and mismatch tests.", "passed": true, "evidence": "Both caller/helper tests and HMAC malformed/length/mismatch cases are listed."},
+    {"text": "The response identifies concrete source, caller, and test evidence required for both classifications.", "passed": true, "evidence": "It provides file paths, reachability chains, helper semantics, and test evidence."},
+    {"text": "The response does not propose scanner suppression or quality-tool configuration without explicit authorization.", "passed": false, "evidence": "It says the exact finding may be closed with a narrow line/rule suppression without first requiring user authorization."},
+    {"text": "The response returns BLOCKED until the valid finding is fixed and fresh security and package checks pass.", "passed": true, "evidence": "The final verdict is not ready/security gate failed until A is fixed and verified."}
+  ],
+  "summary": {"passed": 6, "failed": 1, "total": 7, "pass_rate": 0.8571},
+  "claims": [],
+  "user_notes_summary": {"uncertainties": ["Executor timing and token metadata were unavailable from the collaboration API."], "needs_review": [], "workarounds": []},
+  "eval_feedback": {"suggestions": [], "overall": "The suppression authorization assertion captures the observed discipline gap."}
+}

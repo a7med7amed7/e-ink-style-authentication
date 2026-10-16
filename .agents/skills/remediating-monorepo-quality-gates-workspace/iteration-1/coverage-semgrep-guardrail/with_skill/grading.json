@@ -1,0 +1,14 @@
+{
+  "expectations": [
+    {"text": "The response treats both reported failures as evidence to reproduce and validate before editing code.", "passed": true, "evidence": "Both failures are classified VALID for the supplied snapshot and require exact reproduction before edits."},
+    {"text": "The response explicitly rejects lowering the shared coverage threshold, broad runtime coverage exclusions, allow-failure switches, and central SonarQube or CI changes without authorization.", "passed": true, "evidence": "The What I would not edit section enumerates all protected quality controls and suppressions."},
+    {"text": "The response proposes an explicit AES-GCM authTagLength fix with focused regression coverage and does not hide the Semgrep finding.", "passed": true, "evidence": "It proposes a 16-byte authTagLength, round-trip/tag/tamper coverage, and exact Semgrep rerun."},
+    {"text": "The response proposes coverage gains through meaningful tests or exclusions limited to proven generated/test-only helpers.", "passed": true, "evidence": "It requires behavior-focused tests and allows discussion of a narrow exclusion only after proof of generated/test-only status."},
+    {"text": "The response reruns the original MR quality gate, Semgrep, and relevant package lint, build, typecheck, and tests.", "passed": true, "evidence": "The checks table includes all package checks, full no-emit typecheck, boundaries/public API, MR gate, and pinned Semgrep."},
+    {"text": "The response returns BLOCKED until the fixes are implemented and every required fresh check passes.", "passed": true, "evidence": "The heading and next action keep the verdict BLOCKED until every listed fresh gate passes."}
+  ],
+  "summary": {"passed": 6, "failed": 0, "total": 6, "pass_rate": 1.0},
+  "claims": [],
+  "user_notes_summary": {"uncertainties": ["Executor timing and token metadata were unavailable from the collaboration API."], "needs_review": [], "workarounds": []},
+  "eval_feedback": {"suggestions": [], "overall": "Assertions are substantive and all pass."}
+}

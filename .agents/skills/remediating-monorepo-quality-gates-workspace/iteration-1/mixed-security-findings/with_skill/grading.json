@@ -1,0 +1,15 @@
+{
+  "expectations": [
+    {"text": "Finding A is classified VALID because the reachable direct secret comparison is not constant-time.", "passed": true, "evidence": "The findings table classifies A VALID from reachability and ordinary equality."},
+    {"text": "Finding B is classified INVALID because the reachable shared helper performs canonical decoding, length rejection, and timingSafeEqual.", "passed": true, "evidence": "The findings table classifies B INVALID and cites canonical Base64, length checks, and timingSafeEqual."},
+    {"text": "The response changes production code only for finding A and does not blindly rewrite the already-safe HMAC implementation.", "passed": true, "evidence": "It requires a narrow A change and explicitly says no production change for B."},
+    {"text": "The response requires a regression test for the constant-time helper path and retains or extends HMAC malformed, unequal-length, and mismatch tests.", "passed": true, "evidence": "The regression section covers A caller/helper cases and B malformed/noncanonical/length/mismatch behavior."},
+    {"text": "The response identifies concrete source, caller, and test evidence required for both classifications.", "passed": true, "evidence": "The evidence standard requires cited source, caller reachability, actual implementation, and fresh tests."},
+    {"text": "The response does not propose scanner suppression or quality-tool configuration without explicit authorization.", "passed": true, "evidence": "It says to report any evidence conflict and forbids suppression/configuration without explicit authorization."},
+    {"text": "The response returns BLOCKED until the valid finding is fixed and fresh security and package checks pass.", "passed": true, "evidence": "The verdict is BLOCKED with A and all fresh gates outstanding."}
+  ],
+  "summary": {"passed": 7, "failed": 0, "total": 7, "pass_rate": 1.0},
+  "claims": [],
+  "user_notes_summary": {"uncertainties": ["Executor timing and token metadata were unavailable from the collaboration API."], "needs_review": [], "workarounds": []},
+  "eval_feedback": {"suggestions": [], "overall": "Assertions are substantive and all pass."}
+}

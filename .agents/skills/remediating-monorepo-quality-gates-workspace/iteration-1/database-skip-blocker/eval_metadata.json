@@ -1,0 +1,13 @@
+{
+  "eval_id": 3,
+  "eval_name": "database-skip-blocker",
+  "prompt": "Before pushing, a backend diff changes a Drizzle MSSQL migration, a repository uniqueness rule, and related unit tests. Build, lint, typecheck, and 340 unit tests pass, but the output says 47 MSSQL tests skipped because no live database is available. The deadline is in 20 minutes. State the checks that still matter, whether migration rehearsal is required, and return one verdict: READY, READY WITH LIMITATIONS, or BLOCKED. Do not modify the repository; save only your response artifact.",
+  "assertions": [
+    "The response states that 47 skipped MSSQL tests are not passing evidence for the changed database behavior.",
+    "The response requires live production-matching MSSQL integration tests for the repository and migration changes.",
+    "The response requires migration rehearsal against representative existing rows, including backfill, constraints, and uniqueness behavior.",
+    "The response includes build, lint, full no-emit typecheck, unit tests, boundaries, public API, and applicable security or quality gates without treating them as substitutes for database evidence.",
+    "The final verdict is exactly BLOCKED.",
+    "The deadline is not used to justify READY, READY WITH LIMITATIONS, skipped tests, or weakened checks."
+  ]
+}
