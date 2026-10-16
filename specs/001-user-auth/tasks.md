@@ -3,6 +3,7 @@
 **Input**: `specs/001-user-auth/` — [plan](plan.md), [specification](spec.md), [binding contract](implementation-contract.md), [research](research.md), [data model](data-model.md), [interface contracts](contracts/http-api.md), [verification map](verification.md), [quickstart](quickstart.md).
 **Created**: 2026-10-15 | **Branch**: `master` (unchanged)
 **Status**: Phases 1–8 implementation and source review are complete. Phase 9 source audit and executable gates T113–T115 passed at final code commit e842bb5: 294 tests, zero failures/skips, lint/typecheck/build, current non-root Docker image/native/HTTP smoke on Linux/amd64. T101 actual screen-reader field/error speech and T116 public GitHub publication remain unchecked. Other OS/architectures, production deployment and target hardware remain unverified. See `docs/evidence/final-review.md` and `docs/evidence/final-verification.md`.
+**Local Docker follow-up**: T136 implemented and verified with focused no-env/key persistence/override checks and isolated HTTP startup; the existing host private-bridge firewall limitation remains documented.
 **Tests**: Mandatory under C08/C10 and FR-031. Behavioral tests precede implementation; integration regressions that already pass are recorded honestly rather than forced to fail.
 **Organization**: Shared setup/foundation, then US1–US6 in specification priority order, then final delivery gates. No constitution or extensions.yml hooks are present.
 
@@ -838,6 +839,14 @@ T101 assessment has executed and recorded the unavailable actual-speech evidence
 
 **Checkpoint**: Record this phase’s observed results after T116; an unchecked or failing mandatory target is not delivery evidence.
 
+## Follow-up: one-command local Docker startup
+
+- [x] T136 Generate and reuse a local Docker session secret automatically in `compose.app.yaml` and document the quick command in `README.md`.
+  After: T115; authorized by the user's local-run follow-up. Check: **K136**. Coverage: FR-016, FR-030, V11, V17, V20.
+  Expected: `docker compose -f compose.app.yaml up --build --wait` needs no `.env`, manually passed key, or host Node. A pinned Node init service generates a random 32-byte base64 secret in a named volume, reused across restarts and read-only to the non-root app. Local bind/subnet have configurable defaults. Explicit secret overrides remain supported when supplied; invalid production/missing-secret config still fails closed. Existing private ingress, health checks and Mongo separation remain unchanged. No secret value appears in output or Git.
+  Validation: Resolve Compose with no env file, inspect required service dependencies/mount permissions, execute secret initialization twice to prove canonical length/reuse and file owner/mode without printing its value, and exercise the local image startup path. Record any existing host firewall limitation honestly; clean only task-owned QA resources.
+  Scope: At most two owned source/config/docs files and 100 added production lines; production API and Dockerfile behavior are outside this local convenience change.
+
 ## Exact validation commands
 
 Run from repository root under the selected runtime. K-number matches T-number. Setup/document checks are reversible checks; no artificial unit tests are added for them.
@@ -978,6 +987,7 @@ Run from repository root under the selected runtime. K-number matches T-number. 
 | K114 | `npm run test:e2e` |
 | K115 | `npm run verify` |
 | K116 | `git remote -v && gh auth status` |
+| K136 | `docker compose --env-file /dev/null -f compose.app.yaml config --quiet` plus isolated init/restart/startup probes recorded in local Docker evidence |
 
 ## Dependencies & Execution Order
 
@@ -1144,7 +1154,7 @@ No Redis, Web Locks/BroadcastChannel ordering, idempotency platform, distributed
 
 ## Generated summary
 
-**Generated baseline**: 116 tasks; execution refinements T117–T135 bring the current total to135. Baseline parallel marking:43 tasks in15 bounded cohorts. Supplemental splits/dependencies are recorded beside each added task.
+**Generated baseline**: 116 tasks; execution refinements T117–T136 bring the current total to136. Baseline parallel marking:43 tasks in15 bounded cohorts. Supplemental splits/dependencies are recorded beside each added task.
 
 | Group | Tasks |
 | --- | --- |

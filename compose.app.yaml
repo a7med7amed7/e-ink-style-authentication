@@ -1,6 +1,38 @@
 name: easygen-app
 
 services:
+  session-secret-init:
+    image: node:24.22.0-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
+    user: "0:0"
+    network_mode: none
+    restart: "no"
+    command:
+      - node
+      - -e
+      - |
+        const fs = require('node:fs');
+        const crypto = require('node:crypto');
+        const dir = '/run/easygen-session';
+        const file = dir + '/session-secret';
+        fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+        if (fs.existsSync(file)) {
+          if (!fs.lstatSync(file).isFile()) throw new Error('Session secret must be a regular file');
+          const value = fs.readFileSync(file, 'utf8');
+          const decoded = Buffer.from(value, 'base64');
+          if (decoded.length !== 32 || decoded.toString('base64') !== value) throw new Error('Stored session secret is invalid');
+        } else {
+          const value = crypto.randomBytes(32).toString('base64');
+          const fd = fs.openSync(file, 'wx', 0o400);
+          try { fs.writeFileSync(fd, value); fs.fchownSync(fd, 1000, 1000); fs.fchmodSync(fd, 0o400); }
+          finally { fs.closeSync(fd); }
+        }
+        fs.chownSync(file, 1000, 1000);
+        fs.chmodSync(file, 0o400);
+        fs.chownSync(dir, 1000, 1000);
+        fs.chmodSync(dir, 0o500);
+    volumes:
+      - session-secret:/run/easygen-session
+
   mongo:
     image: mongo:8.0@sha256:6657bf2413fefc5be649390318f5b4cd7328e982722f8ce2ac6dfa6f0a42cb03
     restart: unless-stopped
@@ -21,6 +53,16 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
+      session-secret-init:
+        condition: service_completed_successfully
+    command:
+      - sh
+      - -c
+      - >-
+        export SESSION_SECRET="$${SESSION_SECRET:-$$(cat /run/easygen-session/session-secret)}";
+        exec node apps/api/dist/main.js
+    volumes:
+      - session-secret:/run/easygen-session:ro
     healthcheck:
       test: [CMD, node, -e, "fetch('http://' + process.env.HOST + ':' + process.env.PORT + '/').then((response) => process.exit(response.status === 200 ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 5s
@@ -31,22 +73,23 @@ services:
       NODE_ENV: development
       APP_ORIGIN: http://localhost:3000
       MONGODB_URI: mongodb://mongo:27017/easygen
-      SESSION_SECRET: ${SESSION_SECRET:?Set a generated SESSION_SECRET in .env}
-      HOST: ${DOCKER_APP_HOST:?Set a private DOCKER_APP_HOST in .env}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      HOST: ${DOCKER_APP_HOST:-172.30.0.3}
       PORT: "3000"
       TRUSTED_PROXY_CIDRS: ""
     ports:
       - "127.0.0.1:3000:3000"
     networks:
       private:
-        ipv4_address: ${DOCKER_APP_HOST:?Set a private DOCKER_APP_HOST in .env}
+        ipv4_address: ${DOCKER_APP_HOST:-172.30.0.3}
 
 networks:
   private:
     driver: bridge
     ipam:
       config:
-        - subnet: ${DOCKER_APP_SUBNET:?Set a private DOCKER_APP_SUBNET in .env}
+        - subnet: ${DOCKER_APP_SUBNET:-172.30.0.0/24}
 
 volumes:
   mongo-data:
+  session-secret:

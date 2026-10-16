@@ -27,3 +27,8 @@ The image loaded native Argon2 and completed hash/verify as UID 1000 with Node `
 The smoke container `1c01887e54fdcbc7e4a9d079179c20e50b0cdd94af63d56c72e9d4d2bcea9127` was removed. The exact test database query returned `[]`; port 44543 and the E2E port 4173 were free; the baseline Mongo container remained unchanged and healthy. Results and cleanup evidence are in `http-smoke.log`, `http-smoke-cleanup.txt`, `http-smoke-db-final.txt`, `http-smoke-port-final.txt`, and `baseline-mongo-final.txt` under the QA cache.
 
 These runs verify the committed Linux/amd64 source and local Docker/Mongo conditions. T101 actual Orca field/error speech and T116 public source publication remain open. Deployment-target performance, production HTTPS/proxy deployment, and non-Linux/amd64 operation remain unverified.
+
+
+## Subsequent local Docker convenience
+
+T136 adds the documented one-command launch with an automatically generated persistent local session key and optional network defaults. Root reviewed the Compose/documentation change; application sources, dependencies and production Dockerfile are unchanged. [Focused Docker evidence](local-docker-launcher.md) records configuration, key reuse/permissions/override tests, isolated HTTP startup and cleanup. The normal bridge launch still encounters this host's existing firewall restriction. The earlier 294-test result remains tied to its recorded application revision; it is not a new test run for this launcher change. T101/T116 and other platform/deployment limits remain unchanged.

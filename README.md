@@ -1,12 +1,22 @@
 # Easygen authentication assessment
 
-This repository contains a same-origin React and NestJS authentication app backed by MongoDB. The development workflows below are reproducible with the pinned toolchain. The Docker image, HTTP health check, and authenticated private-network smoke passed on Linux/amd64 with a temporary, narrowly scoped host firewalld allow rule. The unmodified host policy rejected the app-to-Mongo bridge flow; see the Compose note below for the tested scope and limits.
+This repository contains a same-origin React and NestJS authentication app backed by MongoDB. The development workflows below are reproducible with the pinned toolchain. The Docker image, HTTP health check, and authenticated private-network smoke passed in the Phase 8 Linux/amd64 QA proof on 2026-10-16 with a temporary, narrowly scoped host firewalld allow rule. The unmodified host policy rejected the app-to-Mongo bridge flow; see the Compose note below for the tested scope and limits.
+
+## Quick Docker launch
+
+```sh
+docker compose -f compose.app.yaml up --build --wait
+```
+
+Then open <http://localhost:3000>. This local path creates its session key automatically; no `.env`, host Node, or manually generated secret is needed.
+
+On the verified Linux host, its original firewalld policy rejects app-to-Mongo bridge traffic, so this command does not become healthy there until that host-specific forwarding policy permits the private flow. The T136 no-firewall run confirmed this host limitation; Compose does not change host firewall rules.
 
 ## Prerequisites
 
 - Node.js **24.22.0** and npm **11.19.1** (`.nvmrc` and `package.json` pin both) for repository checks and direct-host development.
 - Docker Engine and the Compose plugin for MongoDB and the app image workflow. The Docker-only local app path below does not require Node or npm installed on the host.
-- A fresh `SESSION_SECRET` containing 32 random bytes encoded as base64. The direct-host workflow can generate it with pinned host Node; the Docker-only workflow uses the pinned Node image as described below. Put it in `.env` and do not commit or log the secret.
+- A fresh `SESSION_SECRET` containing 32 random bytes encoded as base64 for direct-host development. The Docker-only workflow creates and stores its own local secret in a named volume; no `.env`, host Node, or manual key is needed.
 
 Check the runtime before installing dependencies:
 
@@ -24,7 +34,8 @@ The direct-host development setup uses one `localhost` origin in the browser and
 
 ```sh
 cp .env.example .env
-# Set SESSION_SECRET in .env to the generated base64 value.
+node -e 'console.log(require("node:crypto").randomBytes(32).toString("base64"))'
+# Copy the one-line output into SESSION_SECRET in .env. Do not commit it.
 npm run db:up
 ```
 
@@ -44,30 +55,28 @@ The example `.env` sets `NODE_ENV=development`, `APP_ORIGIN=http://localhost:517
 
 ## Run the app image with Compose
 
-`compose.app.yaml` builds a non-root image with production-only runtime dependencies and runs the UI/API beside a private MongoDB service. It sets `APP_ORIGIN=http://localhost:3000` and `MONGODB_URI=mongodb://mongo:27017/easygen`, and publishes only `127.0.0.1:3000`; the browser origin is `http://localhost:3000`. The Compose app uses the local-development cookie policy and HTTP because it is a local assessment workflow, not a production TLS topology. It requires `SESSION_SECRET`, `DOCKER_APP_HOST`, and `DOCKER_APP_SUBNET` in `.env`; `.env.example` gives the current non-overlapping defaults, which must be changed if that range conflicts with a host route or another Docker network.
+`compose.app.yaml` builds a non-root image with production-only runtime dependencies and runs the UI/API beside a private MongoDB service. It sets `APP_ORIGIN=http://localhost:3000` and `MONGODB_URI=mongodb://mongo:27017/easygen`, and publishes only `127.0.0.1:3000`; the browser origin is `http://localhost:3000`. The Compose app uses the local-development cookie policy and HTTP because it is a local assessment workflow, not a production TLS topology.
 
-For this Compose-only path, copy the example file without installing host Node: use `cp .env.example .env` in a POSIX shell or `Copy-Item .env.example .env` in PowerShell. Generate a fresh secret with the same digest-pinned Node base used by the app Dockerfile:
-
-```sh
-docker run --rm --entrypoint node node:24.22.0-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5 -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64'))"
-```
-
-Paste the one-line output into the `SESSION_SECRET=` entry in `.env`. This prints only the new secret for the local operator to copy; never save it in shell history, logs, or Git. The Compose-only path needs no host Node/npm installation.
+Start the Docker-only path with no `.env`, host Node, or manual session key:
 
 ```sh
-docker compose --project-name easygen-app --file compose.app.yaml up --build --wait
-docker compose --project-name easygen-app --file compose.app.yaml ps
+docker compose -f compose.app.yaml up --build --wait
+docker compose -f compose.app.yaml ps
 ```
 
-Compose defines a MongoDB ping health check and an app health check that requires HTTP 200 from `/`. On the observed Linux host, the app became healthy; direct and published app URLs returned HTTP 200; signup returned 201; and cookie-authenticated `/api/auth/me` returned 200. The app ran as `node` under Node 24.22.0. These checks used the private bridge path from app address `172.30.0.3` to MongoDB `172.30.0.2:27017`.
+The first start runs a digest-pinned Node initializer that creates a cryptographically random session key in the Compose `session-secret` volume. The file is owned by UID 1000, mode `0400`, and mounted read-only into the app. It is reused across restarts and is never printed. An explicit non-empty `SESSION_SECRET` in the environment or `.env` overrides the generated key; an empty value falls back to the stored key. Compose defaults to private app address `172.30.0.3` on `172.30.0.0/24`; if that range conflicts with a host route or another Docker network, set `DOCKER_APP_HOST` and `DOCKER_APP_SUBNET` in `.env` to a free private address and subnet. The MongoDB service remains private, and only the app is published on loopback at port 3000.
+
+Compose defines a MongoDB ping health check and an app health check that requires HTTP 200 from `/`. In the dated Phase 8 QA proof on 2026-10-16, the app became healthy; direct and published app URLs returned HTTP 200; signup returned 201; and cookie-authenticated `/api/auth/me` returned 200. The app ran as `node` under Node 24.22.0. These checks used the private bridge path from app address `172.30.0.3` to MongoDB `172.30.0.2:27017` with the temporary rule described below. The later T136 launch without any firewall change ran secret initialization and Mongo health successfully, but the app exited with `EHOSTUNREACH 172.30.0.2:27017` under the original host policy; it does not supersede that earlier proof.
 
 The host's original firewalld policy has a nested `FORWARD` catch-all reject that blocks this new bridge connection. For this QA run only, a narrowly scoped `NEW` TCP/27017 allow for that exact app-to-Mongo bridge flow was inserted before the rejecting policy. Its counter recorded 4 packets / 240 bytes. The temporary rule was removed after the smoke, and the app stack, probe, and diagnostic resources were cleaned up; the separate baseline Mongo service and volume were preserved. This proves the app path after the scoped allowance, not that the original host firewall permits it by default. Other hosts may require their own network-policy adjustment, and Docker behavior has only been verified on Linux/amd64.
 
-Stop the stack and preserve its database volume with:
+Stop the stack and preserve the database and session key with:
 
 ```sh
-docker compose --project-name easygen-app --file compose.app.yaml down
+docker compose -f compose.app.yaml down
 ```
+
+Use `docker compose -f compose.app.yaml down -v` only when you want to delete the local accounts, stored sessions, and generated session-key file. The next start recreates the generated key; a non-empty explicit `SESSION_SECRET` override in the shell or `.env` still takes precedence.
 
 ## Verification commands
 
