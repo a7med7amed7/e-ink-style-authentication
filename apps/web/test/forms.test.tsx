@@ -208,6 +208,26 @@ class UncertainSignupFormsController extends FormsController {
   };
 }
 
+class VerifiedSignupRecoveryFormsController extends FormsController {
+  readonly rechecks: string[] = [];
+
+  constructor(private readonly observeAuthenticated = true) {
+    super();
+  }
+
+  override revalidate = (reason = "bootstrap"): Promise<void> => {
+    this.rechecks.push(reason);
+    if (reason === "retry") {
+      this.update(this.observeAuthenticated
+        ? { status: "authenticated", generation: 1, verifiedGeneration: 1, latestReadId: 2,
+          routeTrusted: true, serverObservation: "authenticated", user: signedInUser }
+        : { status: "unauthenticated", generation: 1, verifiedGeneration: null, latestReadId: 2,
+          routeTrusted: true, serverObservation: "anonymous", user: undefined });
+    }
+    return Promise.resolve();
+  };
+}
+
 class UncertainSigninFormsController extends SigninFormsController {
   readonly rechecks: string[] = [];
 
@@ -228,6 +248,26 @@ class UncertainSigninFormsController extends SigninFormsController {
       routeTrusted: false, pendingOperation: null, serverObservation: "anonymous",
       serverOutcomeUncertain: true, lastOperationOutcome: "uncertain", message });
     return Promise.resolve({ outcome: "uncertain", message });
+  };
+}
+
+class VerifiedSigninRecoveryFormsController extends SigninFormsController {
+  readonly rechecks: string[] = [];
+
+  constructor(private readonly observeAuthenticated = true) {
+    super();
+  }
+
+  override revalidate = (reason = "bootstrap"): Promise<void> => {
+    this.rechecks.push(reason);
+    if (reason === "retry") {
+      this.update(this.observeAuthenticated
+        ? { status: "authenticated", generation: 1, verifiedGeneration: 1, latestReadId: 2,
+          routeTrusted: true, serverObservation: "authenticated", user: signedInUser }
+        : { status: "unauthenticated", generation: 1, verifiedGeneration: null, latestReadId: 2,
+          routeTrusted: true, serverObservation: "anonymous", user: undefined });
+    }
+    return Promise.resolve();
   };
 }
 
@@ -341,8 +381,50 @@ describe("signup-form:", () => {
     await user.type(password, "Abcdef1 ");
     await user.click(screen.getByRole("button", { name: /create account|sign up/i }));
 
-    expect(await screen.findByText(/punctuation character or symbol/i)).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toMatch(/punctuation character or symbol/i);
     expect(password.getAttribute("aria-invalid")).toBe("true");
+    const descriptionId = password.getAttribute("aria-describedby");
+    expect(descriptionId).toBeTruthy();
+    expect(document.getElementById(descriptionId ?? "")?.textContent).toMatch(/punctuation character or symbol/i);
+    expect(controller.signupInputs).toHaveLength(0);
+  });
+
+  it("keeps signup keyboard order, password-toggle focus, and announced first-field errors", async () => {
+    const user = userEvent.setup();
+    const controller = new FormsController();
+    renderRoutes(controller, "/signup");
+
+    const email = screen.getByLabelText<HTMLInputElement>("Email");
+    const name = screen.getByLabelText<HTMLInputElement>("Name");
+    const password = screen.getByLabelText<HTMLInputElement>("Password");
+    const toggle = screen.getByRole<HTMLButtonElement>("button", { name: "Show password" });
+    const submit = screen.getByRole<HTMLButtonElement>("button", { name: /create account|sign up/i });
+
+    await user.tab();
+    expect(document.activeElement).toBe(email);
+    await user.tab();
+    expect(document.activeElement).toBe(name);
+    await user.tab();
+    expect(document.activeElement).toBe(password);
+    await user.tab();
+    expect(document.activeElement).toBe(toggle);
+    await user.keyboard("{Enter}");
+    expect(password.type).toBe("text");
+    expect(document.activeElement).toBe(toggle);
+    await user.keyboard(" ");
+    expect(password.type).toBe("password");
+    expect(document.activeElement).toBe(toggle);
+    await user.tab();
+    expect(document.activeElement).toBe(submit);
+    await user.keyboard("{Enter}");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/email/i);
+    expect(email.getAttribute("aria-invalid")).toBe("true");
+    const descriptionId = email.getAttribute("aria-describedby");
+    expect(descriptionId).toBeTruthy();
+    expect(document.getElementById(descriptionId ?? "")?.textContent).toMatch(/email/i);
+    expect(document.activeElement).toBe(email);
     expect(controller.signupInputs).toHaveLength(0);
   });
 
@@ -362,6 +444,8 @@ describe("signup-form:", () => {
 
     act(() => { controller.confirmSignup(); });
     await waitFor(() => { expect(screen.getByText("Welcome to the application.")).toBeTruthy(); });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
     expect(controller.signupInputs[0]).toEqual({
       email: "ada@example.test",
       name: "Ada Example",
@@ -461,8 +545,74 @@ describe("signup-form:", () => {
     expect(controller.signupInputs).toHaveLength(1);
     expect(screen.getByRole("status").textContent).toMatch(/session verified/i);
     expect(screen.getByRole("status").textContent).toMatch(/may still complete/i);
+    const recoveryAfterCheck = screen.getByRole("alert");
+    expect(recoveryAfterCheck.textContent).toMatch(/account may have been created/i);
+    expect(recoveryAfterCheck.textContent).not.toMatch(/sign in is the recovery path/i);
+    expect(recoveryAfterCheck.textContent).not.toMatch(/check your session before trying again/i);
+    expect(screen.getByRole("link", { name: "Continue to the application" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Create your account" })).toBeTruthy();
     expect(screen.queryByText("Welcome to the application.")).toBeNull();
+
+    const password = screen.getByLabelText<HTMLInputElement>("Password");
+    await userEvents.clear(password);
+    await userEvents.type(password, "short");
+    await userEvents.click(screen.getByRole("button", { name: "Create account" }));
+    expect(screen.getByRole("alert").textContent).toMatch(/check these fields/i);
+    expect(screen.getByRole("alert").textContent).toMatch(/password/i);
+    expect(screen.getByRole("alert").textContent).not.toMatch(/account may have been created/i);
+    expect(screen.getByRole("status").textContent).toMatch(/may still complete/i);
+  });
+
+  it("offers verified signup continuation after an acknowledged response could not be checked", async () => {
+    const userEvents = userEvent.setup();
+    const controller = new VerifiedSignupRecoveryFormsController();
+    renderRoutes(controller, "/signup");
+
+    await userEvents.type(screen.getByLabelText<HTMLInputElement>("Email"), "ada@example.test");
+    await userEvents.type(screen.getByLabelText<HTMLInputElement>("Name"), "Ada Example");
+    await userEvents.type(screen.getByLabelText<HTMLInputElement>("Password"), "Abcdef1!");
+    await userEvents.click(screen.getByRole("button", { name: /create account|sign up/i }));
+    act(() => { controller.failSignup(); });
+
+    expect((await screen.findByRole("alert")).textContent).toMatch(/account may have been created/i);
+    expect(screen.getByRole("alert").textContent).toMatch(/check your session/i);
+    await userEvents.click(screen.getByRole("button", { name: "Check session" }));
+
+    expect(controller.rechecks.at(-1)).toBe("retry");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("status").textContent).toMatch(/session verified/i);
+    expect(screen.getByRole("status").textContent).not.toMatch(/may still complete/i);
+    expect(screen.getByRole("link", { name: "Continue to the application" })).toBeTruthy();
+  });
+
+  it("replaces signup recovery instructions after a retry observes an anonymous session", async () => {
+    const userEvents = userEvent.setup();
+    const controller = new VerifiedSignupRecoveryFormsController(false);
+    renderRoutes(controller, "/signup");
+
+    await userEvents.type(screen.getByLabelText<HTMLInputElement>("Email"), "ada@example.test");
+    await userEvents.type(screen.getByLabelText<HTMLInputElement>("Name"), "Ada Example");
+    await userEvents.type(screen.getByLabelText<HTMLInputElement>("Password"), "Abcdef1!");
+    await userEvents.click(screen.getByRole("button", { name: /create account|sign up/i }));
+    act(() => { controller.failSignup(); });
+
+    expect((await screen.findByRole("alert")).textContent).toMatch(/check your session/i);
+    await userEvents.click(screen.getByRole("button", { name: "Check session" }));
+
+    expect(controller.rechecks.at(-1)).toBe("retry");
+    expect(screen.getByRole("alert").textContent).toMatch(/no session is currently observed/i);
+    expect(screen.getByRole("alert").textContent).toMatch(/sign in to continue/i);
+    expect(screen.getByRole("alert").textContent).not.toMatch(/check your session/i);
+    expect(screen.queryByRole("button", { name: "Check session" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Continue to the application" })).toBeNull();
+
+    const email = screen.getByLabelText<HTMLInputElement>("Email");
+    await userEvents.clear(email);
+    await userEvents.type(email, "not-an-email");
+    await userEvents.click(screen.getByRole("button", { name: "Create account" }));
+    expect(screen.getByRole("alert").textContent).toMatch(/check these fields/i);
+    expect(screen.getByRole("alert").textContent).toMatch(/email/i);
+    expect(screen.getByRole("alert").textContent).not.toMatch(/no session is currently observed/i);
   });
 
   it("keeps protected welcome content hidden until the current generation is verified", () => {
@@ -497,6 +647,42 @@ describe("signin-form:", () => {
     expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
   });
 
+  it("keeps signin keyboard order, password-toggle focus, and announced first-field errors", async () => {
+    const user = userEvent.setup();
+    const controller = new SigninFormsController();
+    await renderApplication(controller, "/signin");
+
+    const email = await screen.findByRole<HTMLInputElement>("textbox", { name: "Email" });
+    const password = screen.getByLabelText<HTMLInputElement>("Password");
+    const toggle = screen.getByRole<HTMLButtonElement>("button", { name: "Show password" });
+    const submit = screen.getByRole<HTMLButtonElement>("button", { name: "Sign in" });
+
+    await user.tab();
+    expect(document.activeElement).toBe(email);
+    await user.tab();
+    expect(document.activeElement).toBe(password);
+    await user.tab();
+    expect(document.activeElement).toBe(toggle);
+    await user.keyboard("{Enter}");
+    expect(password.type).toBe("text");
+    expect(document.activeElement).toBe(toggle);
+    await user.keyboard(" ");
+    expect(password.type).toBe("password");
+    expect(document.activeElement).toBe(toggle);
+    await user.tab();
+    expect(document.activeElement).toBe(submit);
+    await user.keyboard("{Enter}");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/email/i);
+    expect(email.getAttribute("aria-invalid")).toBe("true");
+    const descriptionId = email.getAttribute("aria-describedby");
+    expect(descriptionId).toBeTruthy();
+    expect(document.getElementById(descriptionId ?? "")?.textContent).toMatch(/email/i);
+    expect(document.activeElement).toBe(email);
+    expect(controller.signinInputs).toHaveLength(0);
+  });
+
   it("restores a working sign-in link from signup", async () => {
     const user = userEvent.setup();
     const controller = new SigninFormsController();
@@ -521,6 +707,8 @@ describe("signin-form:", () => {
 
     act(() => { controller.confirmSignin(); });
     await waitFor(() => { expect(screen.getByText("Welcome to the application.")).toBeTruthy(); });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("announces generic credential rejection without navigating or revealing account existence", async () => {
@@ -555,6 +743,56 @@ describe("signin-form:", () => {
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.getByRole("button", { name: "Check session" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
+  });
+
+  it("offers verified sign-in continuation after verification recovery", async () => {
+    const user = userEvent.setup();
+    const controller = new VerifiedSigninRecoveryFormsController();
+    await renderApplication(controller, "/signin");
+
+    await user.type(await screen.findByRole("textbox", { name: "Email" }), "ada@example.test");
+    await user.type(screen.getByLabelText<HTMLInputElement>("Password"), "Abcdef1!");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    act(() => { controller.failSigninVerification(); });
+
+    expect((await screen.findByRole("alert")).textContent).toMatch(/could not verify this sign-in/i);
+    await user.click(screen.getByRole("button", { name: "Check session" }));
+
+    expect(controller.rechecks.at(-1)).toBe("retry");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("status").textContent).toMatch(/session verified/i);
+    expect(screen.getByRole("status").textContent).not.toMatch(/may still complete/i);
+    expect(screen.getByRole("link", { name: "Continue to the application" })).toBeTruthy();
+  });
+
+  it("replaces sign-in check instructions after anonymous recheck", async () => {
+    const user = userEvent.setup();
+    const controller = new VerifiedSigninRecoveryFormsController(false);
+    await renderApplication(controller, "/signin");
+
+    await user.type(await screen.findByRole("textbox", { name: "Email" }), "ada@example.test");
+    await user.type(screen.getByLabelText<HTMLInputElement>("Password"), "Abcdef1!");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    act(() => { controller.failSigninVerification(); });
+
+    expect((await screen.findByRole("alert")).textContent).toMatch(/check session/i);
+    await user.click(screen.getByRole("button", { name: "Check session" }));
+
+    expect(controller.rechecks.at(-1)).toBe("retry");
+    expect(screen.getByRole("alert").textContent).toMatch(/no session is currently observed/i);
+    expect(screen.getByRole("alert").textContent).toMatch(/try signing in again/i);
+    expect(screen.getByRole("alert").textContent).not.toMatch(/check session/i);
+    expect(screen.queryByRole("button", { name: "Check session" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Continue to the application" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
+
+    const email = screen.getByLabelText<HTMLInputElement>("Email");
+    await user.clear(email);
+    await user.type(email, "not-an-email");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(screen.getByRole("alert").textContent).toMatch(/check these fields/i);
+    expect(screen.getByRole("alert").textContent).toMatch(/email/i);
+    expect(screen.getByRole("alert").textContent).not.toMatch(/no session is currently observed/i);
   });
 
   it("does not show a stale signin rejection after a newer auth generation", async () => {

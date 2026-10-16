@@ -2,7 +2,7 @@
 
 **Input**: `specs/001-user-auth/` — [plan](plan.md), [specification](spec.md), [binding contract](implementation-contract.md), [research](research.md), [data model](data-model.md), [interface contracts](contracts/http-api.md), [verification map](verification.md), [quickstart](quickstart.md).
 **Created**: 2026-10-15 | **Branch**: `master` (unchanged)
-**Status**: Phase 1 setup is complete. Checked tasks passed their exact listed checks; K014 intentionally exits 1 because AI.md is new. Remaining tasks are unexecuted. No authentication behavior, application build, benchmark or publication is claimed here.
+**Status**: Phases 1–6 are reviewed and committed. Phase 7 implementation and source review are complete; T091–T100 and T121–T122 have observed passing evidence. T101 actual screen-reader field/error speech remains unverified and blocks that delivery claim. Docker delivery, benchmarks, clean reproduction and final publication are pending. See `docs/evidence/core-security.md` and `docs/evidence/accessibility.md`.
 **Tests**: Mandatory under C08/C10 and FR-031. Behavioral tests precede implementation; integration regressions that already pass are recorded honestly rather than forced to fail.
 **Organization**: Shared setup/foundation, then US1–US6 in specification priority order, then final delivery gates. No constitution or extensions.yml hooks are present.
 
@@ -598,22 +598,22 @@ Playwright webServer runs the built same-origin app with explicit test origin/po
 
 ### Tests first
 
-- [ ] T091 [P] [US5] Exercise all POST origin/fallback/AJAX/media cases through real Nest HTTP in `apps/api/test/security.integration.test.ts`.
+- [x] T091 [P] [US5] Exercise all POST origin/fallback/AJAX/media cases through real Nest HTTP in `apps/api/test/security.integration.test.ts`.
   After: T090. Check: **K091**. Coverage: FR-015, FR-016, FR-029, V08, V17.
   Expected: Signup/signin/logout bad/missing/null origins403; trusted Referer only for absent Origin; JSON charset accepted; malformed/over16KiB JSON or invalid media400; login CSRF rejected.
   RED/behavior target: Regression for already-built middleware; any mismatch is repaired before core gate.
 
-- [ ] T092 [P] [US5] Build verified-proxy fixture and test forged forwarding headers from trusted/untrusted socket peers in `apps/api/test/support/proxy.ts` and `apps/api/test/proxy.integration.test.ts`.
+- [x] T092 [P] [US5] Build verified-proxy fixture and test forged forwarding headers from trusted/untrusted socket peers in `apps/api/test/support/proxy.ts` and `apps/api/test/proxy.integration.test.ts`.
   After: T090. Check: **K092**. Coverage: FR-016, FR-017, V17.
   Expected: Proxy overwrites spoofing; exact address trust affects req.ip/req.secure; untrusted localAddress ignores XFF/Proto; Secure/__Host and no Domain only under documented production trust.
   RED/behavior target: Target proxy/IP behavior is now verified rather than assumed; fix mismatches within existing boundary owners.
 
-- [ ] T093 [P] [US5] Add recognized get/renew-save/destroy outage and rejected-request-no-renewal integration assertions in `apps/api/test/session.integration.test.ts`.
+- [x] T093 [P] [US5] Add recognized get/renew-save/destroy outage and rejected-request-no-renewal integration assertions in `apps/api/test/session.integration.test.ts`.
   After: T090. Check: **K093**. Coverage: FR-009, FR-010, FR-013, FR-014, V16, V17.
   Expected: 503 before headers; no auth/invalidation success or fallback; persisted deadline unchanged on origin/rate denial; no delegated end-time retry.
   RED/behavior target: Regression with forced store callbacks; never mark an outage result as verified authentication.
 
-- [ ] T094 [US5] Verify exact four route limits, isolated state and zero password work for rejected attempts in `apps/api/test/security.integration.test.ts`.
+- [x] T094 [US5] Verify exact four route limits, isolated state and zero password work for rejected attempts in `apps/api/test/security.integration.test.ts`.
   After: T091. Check: **K094**. Coverage: FR-017, FR-018, FR-029, V09, V13.
   Expected: Signup sixth429, signin eleventh429, me121st429/logout31st429; usable Retry-After seconds; rejected hash/verify counter stays unchanged; no fixture leakage.
   RED/behavior target: Regression for configured throttler; route-policy/order mistakes fail before core gate.
@@ -621,38 +621,51 @@ Playwright webServer runs the built same-origin app with explicit test origin/po
 
 ### Implementation and integration
 
-- [ ] T095 [US5] Write failing redaction assertions then implement metadata-only request completion logging in `apps/api/test/request-log.test.ts` and `apps/api/src/common/request-log.ts`.
+- [x] T095 [US5] Write failing redaction assertions then implement metadata-only request completion logging in `apps/api/test/request-log.test.ts` and `apps/api/src/common/request-log.ts`.
   After: T094, T092, T093. Check: **K095**. Coverage: FR-029, FR-033, V17.
   Expected: Request ID, method, route pattern/status/elapsed only; no raw query/body/password/hash/cookie/authorization/URI or sensitive stack.
   RED/behavior target: Tests in this task fail for missing/unsafe logging before implementation.
 
-- [ ] T096 [US5] Register safe logging and final private-proxy/cookie trust configuration in bootstrap in `apps/api/src/bootstrap.ts`.
+- [x] T096 [US5] Register safe logging and final private-proxy/cookie trust configuration in bootstrap in `apps/api/src/bootstrap.ts`.
   After: T095. Check: **K096**. Coverage: FR-016, FR-017, FR-029, V08, V09, V17.
   Expected: Runtime logging is used; proxy/static/session middleware order remains correct; error events are handled without leaking payloads.
   RED/behavior target: T092.
 
-- [ ] T097 [US5] Record core authentication/security gate before CSS finish in `docs/evidence/core-security.md`.
+- [x] T097 [US5] Record core authentication/security gate before CSS finish in `docs/evidence/core-security.md`.
   After: T096. Check: **K097**. Coverage: FR-031, V01, V02, V03, V04, V05, V06, V07, V08, V09, V10, V12, V13, V14, V16, V17.
   Expected: Signup/signin/anonymous denial/idle+absolute expiry/logout+cookie replay/validation/CSRF/throttling/duplicates/queue/client uncertainty all pass; missing mandatory behavior blocks polish.
 
-- [ ] T098 [US5] Add keyboard/error/visibility/focus, narrow-screen and reduced-motion assertions in `tests/e2e/accessibility.spec.ts` and `apps/web/test/forms.test.tsx`.
+- [x] T098 [US5] Add keyboard/error/visibility/focus, narrow-screen and reduced-motion assertions in `tests/e2e/accessibility.spec.ts` and `apps/web/test/forms.test.tsx`.
   After: T097. Check: **K098**. Coverage: FR-027, FR-028, V18.
   Expected: Logical tabs, explicit labels/describedby/invalid states, announcements and submit usability; 320px no obstruction; required contrast/touch and reduced-motion checks.
   RED/behavior target: Unfinished CSS/interaction cases fail; existing semantic cases remain regressions.
 
-- [ ] T099 [US5] Implement high-contrast e-ink responsive styles, visible focus and reduced-motion-safe transitions in `apps/web/src/styles.css` and `apps/web/src/main.tsx`.
+- [x] T099 [US5] Implement high-contrast e-ink responsive styles, visible focus and reduced-motion-safe transitions in `apps/web/src/styles.css` and `apps/web/src/main.tsx`.
   After: T098. Check: **K099**. Coverage: FR-027, FR-028, V18.
   Expected: Normal text4.5:1, large text/applicable controls3:1; primary targets44x44; 320px layout; animations never gate interaction.
   RED/behavior target: T098.
 
-- [ ] T100 [US5] Resolve keyboard/error-announcement integration in fields/status without altering authentication evidence in `apps/web/src/components/auth-fields.tsx` and `apps/web/src/components/auth-status.tsx`.
+- [x] T100 [US5] Resolve keyboard/error-announcement integration in fields/status without altering authentication evidence in `apps/web/src/components/auth-fields.tsx` and `apps/web/src/components/auth-status.tsx`.
   After: T099. Check: **K100**. Coverage: FR-027, FR-028, V18.
   Expected: All keyboard actions and live error associations work; visibility button retains focus; no duplicate contradictory live-region success.
   RED/behavior target: T098.
 
+- [x] T121 [US5] Correct stale signup recovery instructions after a verified session recheck in `apps/web/src/pages/signup.tsx` and `apps/web/test/forms.test.tsx`.
+  After: T100. Check: **K121**. Coverage: FR-019, FR-022, FR-027, V14, V18.
+  Expected: A current authenticated, route-trusted identity with matching verified generation removes stale sign-in/check instructions after uncertain POST or acknowledged POST with failed initial verification; a later anonymous observation replaces obsolete check-again copy; possible earlier account creation and server-work uncertainty remain disclosed. Preserve the verified Continue action and all controller semantics.
+  RED/behavior target: Strengthen the existing signup uncertainty/recheck test before the presentation-only fix; stale recovery instructions currently contradict verified identity.
+  Execution refinement: Independent Phase 7 UI review found this page-level issue; split before coding to retain the two-file/100-production-line task cap.
+
+- [x] T122 [US5] Refresh signin recovery feedback after an independent verified or anonymous recheck in `apps/web/src/pages/signin.tsx` and `apps/web/test/forms.test.tsx`.
+  After: T100. Check: **K122**. Coverage: FR-019, FR-022, FR-027, V14, V18.
+  Expected: An acknowledged POST followed by a failed identity read can recover through GET-only revalidation; verified identity offers Continue without stale check instructions or invented POST uncertainty. A later 401 gives current anonymous/signin-again feedback without a vanished-action instruction. Controller receipts and mutation ordering remain unchanged.
+  RED/behavior target: Add authenticated and anonymous recovery assertions before presentation changes; current local feedback survives both observations incorrectly.
+  Execution refinement: Independent UI review found the adjacent signin cases; split from T121 before coding to retain two-file/100-production-line scope.
+
 - [ ] T101 [US5] Run browser checks and actual assistive-technology/contrast inspection, recording tool/version and gaps in `docs/evidence/accessibility.md`.
-  After: T100. Check: **K101**. Coverage: FR-027, FR-028, FR-031, V18.
+  After: T100, T121, T122. Check: **K101**. Coverage: FR-027, FR-028, FR-031, V18.
   Expected: Actual keyboard/screen-reader announcements, focus, computed contrast, targets, mobile and motion results; unavailable manual verification stays unverified and blocks that mandatory claim.
+  Observed: Automated browser checks, contrast, keyboard and screenshot review passed; Orca startup/document events worked but field/live-error speech was not proven. This task remains unchecked; see `docs/evidence/accessibility.md`. Reproducibility work may continue independently of this environment gap, but final V18/SC-007 delivery remains blocked until actual speech is verified.
 
 
 **Checkpoint**: Record this phase’s observed results after T101; an unchecked or failing mandatory target is not delivery evidence.
@@ -839,6 +852,8 @@ Run from repository root under the selected runtime. K-number matches T-number. 
 | K086 | `npm run test:unit --workspace @easygen/web -- test/auth-outcomes.test.ts -t 'outcome:'` |
 | K118 | `npm run test:unit --workspace @easygen/web -- test/auth-concurrency.test.ts` |
 | K119 | `npm run typecheck --workspace @easygen/web && npm run test:unit --workspace @easygen/web -- test/route-trust.test.tsx -t 'navigation'` |
+| K122 | `npm run test:unit --workspace @easygen/web -- test/forms.test.tsx` |
+| K121 | `npm run test:unit --workspace @easygen/web -- test/forms.test.tsx` |
 | K120 | `npm run test:unit --workspace @easygen/web -- test/route-trust.test.tsx test/auth-context.test.tsx` |
 | K087 | `npm run test:unit --workspace @easygen/web -- test/route-trust.test.tsx -t 'route-trust:'` |
 | K088 | `npm run test:unit --workspace @easygen/web -- test/auth-status.test.tsx -t 'auth-status:'` |
@@ -853,7 +868,7 @@ Run from repository root under the selected runtime. K-number matches T-number. 
 | K097 | `npm run test:integration && npm run test:unit` |
 | K098 | `npm run build && npx playwright test tests/e2e/accessibility.spec.ts -g 'accessibility:'` |
 | K099 | `npm run build && npx playwright test tests/e2e/accessibility.spec.ts -g 'accessibility: layout'` |
-| K100 | `npm run build && npx playwright test tests/e2e/accessibility.spec.ts -g 'accessibility: keyboard\|accessibility: errors'` |
+| K100 | `npm run build && npx playwright test tests/e2e/accessibility.spec.ts` |
 | K101 | `npm run build && npx playwright test tests/e2e/accessibility.spec.ts` |
 | K102 | `npm run build && npx playwright test tests/e2e/unicode.spec.ts -g 'unicode:'` |
 | K103 | `npm run build:test:api -- apps/api/test/benchmark-hash.test.ts && node --test --test-name-pattern='benchmark:' apps/api/dist-test/targets/benchmark-hash.test/test/benchmark-hash.test.js` |

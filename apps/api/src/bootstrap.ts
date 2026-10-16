@@ -11,6 +11,7 @@ import type { MongoStore } from "connect-mongo";
 import helmet from "helmet";
 import type { ApiConfig } from "./config.js";
 import { ApiErrorFilter, writeApiError } from "./common/api-error.filter.js";
+import { createRequestCompletionLogger } from "./common/request-log.js";
 import {
   AppModule,
   MONGO_SESSION_STORE,
@@ -106,6 +107,7 @@ export async function buildApp(
       response.setHeader("X-Request-Id", requestId);
       next();
     });
+    app.use(createRequestCompletionLogger());
 
     app.use(createSecurityHeaders(options.config.nodeEnv));
     app.use(createOriginMiddleware(options.config.appOrigin));

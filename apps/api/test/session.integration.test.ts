@@ -16,8 +16,12 @@ const policies = {
   "POST /api/auth/signin": { limit: 100, ttl: 60_000 },
 };
 
-function fixtureFor(context: TestContext, clock?: ControlledClock): Promise<MongoFixture> {
-  const fixture = createRealMongoFixture({ routePolicies: policies, ...(clock ? { clock } : {}) });
+function fixtureFor(
+  context: TestContext,
+  clock?: ControlledClock,
+  routePolicies: typeof policies | Readonly<Record<string, { readonly limit: number; readonly ttl: number; readonly blockDuration?: number }>> = policies,
+): Promise<MongoFixture> {
+  const fixture = createRealMongoFixture({ routePolicies, ...(clock ? { clock } : {}) });
   context.after(async () => (await fixture).teardown());
   return fixture;
 }
@@ -223,6 +227,45 @@ function failFirstStoreWrite(fixture: MongoFixture): () => number {
   return () => writes;
 }
 
+function failFirstStoreRead(fixture: MongoFixture, failure: unknown): () => number {
+  type StoreGet = MongoFixture["store"]["get"];
+  type Callback = NonNullable<Parameters<StoreGet>[1]>;
+  const originalGet = fixture.store.get.bind(fixture.store);
+  let reads = 0;
+  let fail = true;
+
+  Object.defineProperty(fixture.store, "get", {
+    configurable: true,
+    value: (sid: string, callback: Callback): void => {
+      reads += 1;
+      if (fail) {
+        fail = false;
+        callback(failure, null);
+        return;
+      }
+      originalGet(sid, callback);
+    },
+  });
+  return () => reads;
+}
+
+function countStoreWrites(fixture: MongoFixture): () => number {
+  type StoreSet = MongoFixture["store"]["set"];
+  type SessionData = Parameters<StoreSet>[1];
+  type Callback = NonNullable<Parameters<StoreSet>[2]>;
+  const originalSet = fixture.store.set.bind(fixture.store);
+  let writes = 0;
+
+  Object.defineProperty(fixture.store, "set", {
+    configurable: true,
+    value: (sid: string, session: SessionData, callback?: Callback): void => {
+      writes += 1;
+      originalSet(sid, session, callback);
+    },
+  });
+  return () => writes;
+}
+
 function delayFirstStoreDestroy(fixture: MongoFixture): {
   readonly started: Promise<void>;
   readonly persisted: Promise<void>;
@@ -350,6 +393,106 @@ void test("establish: renewal persists activity without moving the absolute auth
     new Date(after.cookie.expires).getTime(),
     Math.min(clock.now() + SESSION_IDLE_TIMEOUT_MS, after.auth.authenticatedAt + SESSION_ABSOLUTE_TIMEOUT_MS),
   );
+});
+
+void test("storage-failure: recognized session read outage returns 503 without fallback or false identity", async (context) => {
+  const fixture = await fixtureFor(context);
+  const signup = await postJson(fixture, fixture.agent, "/api/auth/signup", credentials);
+  assert.equal(signup.status, 201, signup.text);
+  const before = await readStoredSession(fixture);
+  const reads = failFirstStoreRead(fixture, new MongoNetworkError("injected session-store outage"));
+
+  const unavailable = await fixture.agent.get("/api/auth/me").set("Origin", fixture.config.appOrigin);
+  assert.equal(unavailable.status, 503, unavailable.text);
+  assert.equal(responseError(unavailable).code, "SESSION_STORE_UNAVAILABLE");
+  assert.equal(unavailable.headers["cache-control"], "no-store");
+  assert.equal(reads(), 1, "a failed read must not retry or fall back to another session source");
+  assert.equal(await fixture.database.collection("sessions").countDocuments(), 1);
+  assert.deepEqual(await readStoredSession(fixture), before, "a read outage cannot mutate the persisted session");
+
+  const recovered = await fixture.agent.get("/api/auth/me").set("Origin", fixture.config.appOrigin);
+  assert.equal(recovered.status, 200, recovered.text);
+  assert.equal(responseUser(recovered).email, credentials.email);
+  assert.equal(reads(), 2, "the next independent request may read the still-persisted session");
+});
+
+void test("storage-failure: unexpected session read errors stay sanitized 500 responses", async (context) => {
+  const fixture = await fixtureFor(context);
+  const signup = await postJson(fixture, fixture.agent, "/api/auth/signup", credentials);
+  assert.equal(signup.status, 201, signup.text);
+  const before = await readStoredSession(fixture);
+  const reads = failFirstStoreRead(fixture, new Error("sensitive internal database detail"));
+
+  const response = await fixture.agent.get("/api/auth/me").set("Origin", fixture.config.appOrigin);
+  assert.equal(response.status, 500, response.text);
+  assert.equal(responseError(response).code, "INTERNAL_ERROR");
+  assert.doesNotMatch(response.text, /sensitive internal database detail/);
+  assert.equal(reads(), 1, "unexpected failures do not trigger an authentication fallback or retry");
+  assert.deepEqual(await readStoredSession(fixture), before);
+});
+
+void test("storage-failure: renewal save outage returns 503 without a success cookie or response-end retry", async (context) => {
+  const clock = createControlledClock(1_800_000_000_000);
+  const fixture = await fixtureFor(context, clock);
+  const signup = await postJson(fixture, fixture.agent, "/api/auth/signup", credentials);
+  assert.equal(signup.status, 201, signup.text);
+  const before = await readStoredSession(fixture);
+  assert.ok(before.auth && before.cookie?.expires);
+  clock.advance(60_000);
+  const writes = failFirstStoreWrite(fixture);
+
+  const response = await fixture.agent.get("/api/auth/me").set("Origin", fixture.config.appOrigin);
+  assert.equal(response.status, 503, response.text);
+  assert.equal(responseError(response).code, "SESSION_STORE_UNAVAILABLE");
+  assert.equal(response.headers["cache-control"], "no-store");
+  const renewalCookies = cookieHeaders(response);
+  const cookieName = sessionCookieConfiguration(fixture.config.nodeEnv).name;
+  assert.ok(
+    renewalCookies.every((cookie) => cookie.startsWith(`${cookieName}=`) && /;\s*Expires=Thu, 01 Jan 1970 00:00:00 GMT/i.test(cookie)),
+    "a failed renewal may only clear the cookie, never issue a fresh authenticated cookie",
+  );
+  assert.equal(writes(), 1, "failed explicit renewal save must not delegate a response-end retry");
+  assert.equal(await fixture.database.collection("sessions").countDocuments(), 1);
+  const after = await readStoredSession(fixture);
+  assert.deepEqual(after.auth, before.auth);
+  assert.equal(after.cookie?.expires, before.cookie.expires);
+});
+
+void test("storage-failure: rejected Origin and throttled renewal do not persist a new deadline", async (context) => {
+  const clock = createControlledClock(1_800_000_000_000);
+  const fixture = await fixtureFor(context, clock, {
+    ...policies,
+    "GET /api/auth/me": { limit: 1, ttl: 60_000, blockDuration: 60_000 },
+  });
+  const signup = await postJson(fixture, fixture.agent, "/api/auth/signup", credentials);
+  assert.equal(signup.status, 201, signup.text);
+  const before = await readStoredSession(fixture);
+  const writes = countStoreWrites(fixture);
+  clock.advance(60_000);
+
+  const rejectedOrigin = await fixture.agent
+    .post("/api/auth/logout")
+    .set("Origin", "https://attacker.example.test")
+    .set("X-Requested-With", "XMLHttpRequest");
+  assert.equal(rejectedOrigin.status, 403, rejectedOrigin.text);
+  assert.equal(responseError(rejectedOrigin).code, "UNTRUSTED_ORIGIN");
+  assert.equal(writes(), 0, "origin rejection must happen before session persistence");
+  assert.deepEqual(await readStoredSession(fixture), before);
+
+  const acceptedRenewal = await fixture.agent.get("/api/auth/me").set("Origin", fixture.config.appOrigin);
+  assert.equal(acceptedRenewal.status, 200, acceptedRenewal.text);
+  assert.equal(writes(), 1, "the admitted renewal performs one explicit store save");
+  const afterAccepted = await readStoredSession(fixture);
+  assert.ok(afterAccepted.auth && afterAccepted.cookie?.expires);
+  assert.equal(afterAccepted.auth.lastActivityAt, clock.now());
+  clock.advance(60_000);
+
+  const throttledRenewal = await fixture.agent.get("/api/auth/me").set("Origin", fixture.config.appOrigin);
+  assert.equal(throttledRenewal.status, 429, throttledRenewal.text);
+  assert.equal(responseError(throttledRenewal).code, "RATE_LIMITED");
+  assert.equal(writes(), 1, "rate rejection must not delegate another save or response-end write");
+  assert.deepEqual(await readStoredSession(fixture), afterAccepted,
+    "throttled renewal must leave both activity and cookie expiry unchanged");
 });
 
 void test("establish: renewal denies a request whose save crosses the absolute deadline", async (context) => {
@@ -547,7 +690,7 @@ void test("logout: destroys only the presented device session", async (context) 
   assert.equal(remainingRecord._id, sessionIdFromCookie(secondCookie));
 });
 
-void test("logout: reports a store outage without clearing or claiming invalidation", async (context) => {
+void test("storage-failure: logout reports a store outage without clearing or claiming invalidation", async (context) => {
   const fixture = await fixtureFor(context);
   const signup = await postJson(fixture, fixture.agent, "/api/auth/signup", credentials);
   assert.equal(signup.status, 201, signup.text);

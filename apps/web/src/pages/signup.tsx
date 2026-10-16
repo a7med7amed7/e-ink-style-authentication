@@ -15,6 +15,22 @@ export function SignupPage(): React.JSX.Element {
   const [message, setMessage] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
+  const verifiedSession = snapshot.status === 'authenticated' && snapshot.user !== undefined
+    && snapshot.verifiedGeneration === snapshot.generation && snapshot.routeTrusted;
+  const verifiedUncertainSignup = verifiedSession && snapshot.serverOutcomeUncertain;
+  const verifiedSignupRecovery = verifiedSession && !snapshot.serverOutcomeUncertain
+    && snapshot.lastOperationOutcome === 'verification-failed';
+  const anonymousSignupRecovery = snapshot.status === 'unauthenticated' && snapshot.routeTrusted
+    && snapshot.serverObservation === 'anonymous' && !snapshot.serverOutcomeUncertain
+    && snapshot.lastOperationOutcome === 'verification-failed';
+  const recoveryMessage = verifiedUncertainSignup ? 'Your account may have been created.'
+    : verifiedSignupRecovery ? undefined
+      : anonymousSignupRecovery
+        ? 'Your account may have been created, but no session is currently observed. Sign in to continue.'
+        : message;
+  const hasFieldErrors = Object.values(errors).some((fieldErrors) =>
+    fieldErrors !== undefined && fieldErrors.length > 0);
+  const submissionMessage = hasFieldErrors ? message : recoveryMessage;
 
   const change = (field: AuthFieldName, value: string): void => {
     setValues((previous) => ({ ...previous, [field]: value }));
@@ -90,15 +106,15 @@ export function SignupPage(): React.JSX.Element {
   return <main>
     <h1>Create your account</h1>
     <form onSubmit={(event) => { void submit(event); }} noValidate>
-      <AuthFields mode="signup" values={values} errors={errors} submissionError={message} onChange={change} />
+      <AuthFields mode="signup" values={values} errors={errors} submissionError={submissionMessage} onChange={change} />
       <button type="submit" disabled={submitting || snapshot.pendingOperation === 'signup'}>
         {submitting || snapshot.pendingOperation === 'signup' ? 'Creating account…' : 'Create account'}
       </button>
     </form>
     <AuthStatus snapshot={snapshot} onCheckSession={() => controller.revalidate('retry')}
-      submissionMessageVisible={message !== undefined} />
-    {snapshot.serverOutcomeUncertain && snapshot.status === 'authenticated'
-      && snapshot.user !== undefined && snapshot.verifiedGeneration === snapshot.generation && snapshot.routeTrusted
+      submissionMessageVisible={submissionMessage !== undefined} />
+    {verifiedSignupRecovery ? <p role="status">Session verified.</p> : null}
+    {verifiedUncertainSignup || verifiedSignupRecovery
       ? <p><Link to="/app">Continue to the application</Link></p> : null}
     <p>Already have an account? <Link to="/signin">Sign in</Link></p>
   </main>;
